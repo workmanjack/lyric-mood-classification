@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # W266 Group Project: Lyric Mood Classification
 
 UC Berkeley Masters of Information &amp; Data Science
@@ -51,3 +52,28 @@ Paper References:
 - Train an LSTM network with the train dataset and evaluate its performance on the dev dataset.
 - Adjust parameters as needed. Evaluate performance on the test dataset.
 - Sample the trained model to produce lyrics of a specified mood.
+
+## Python Environment Setup
+
+First, make sure you have Python 3.6+ installed.
+
+Then, run through the following commands:
+
+- `python -m venv .venv_w266_project`
+- Windows: `.venv_w266_project\Scripts\activate.bat`
+- Linux: `source .venv_w266_project/Scripts/activate`
+- `pip install -r requirements.txt` - this will install all required packages and might take several minutes
+
+## Downloading Data
+
+The original dataset is quite large. Too large, in fact, to be stored in the github repo. To download the data, please run script download_data.py.
+
+`python download_data.py`
+
+This will download the data into the _data_ directory. This will take several minutes.
+
+## Useful Links
+
+(Python code for interacting with musicmatch lyrics)[https://github.com/tbertinmahieux/MSongsDB/tree/master/Tasks_Demos/Lyrics]
+
+(Scraping song lyrics from Genius.com)[https://www.johnwmillr.com/scraping-genius-lyrics/}
