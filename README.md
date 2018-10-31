@@ -8,6 +8,8 @@ Team: Cyprian Gascoigne, Jack Workman, Yuchen Zhang
 
 ## Project Proposal
 
+https://docs.google.com/document/d/1ofGlfFS2aUMOvsI7ZhUnTVFt6m2Gls2x_Sw_QMRh3vI/edit
+
 Live Session Instructor: Daniel Cer
 Group Members: Jack Workman, Yuchen Zhang, Cyprian Gascoigne
 
