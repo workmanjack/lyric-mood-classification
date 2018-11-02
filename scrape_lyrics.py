@@ -9,8 +9,6 @@ script to avoid wasting time attempting to download lyrics for a song we know
 we cannot find. The same logic applies to songs we already have lyrics for. The
 script will not attempt to find lyrics for songs that already exist in the data
 directory.
-
-If
 """
 import lyricsgenius as genius
 import pandas as pd

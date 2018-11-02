@@ -1,4 +1,4 @@
 .venv_w266_project
 logs/*
 data/*
-!data/mxm_mappings.csv
+#!data/mxm_mappings.csv
