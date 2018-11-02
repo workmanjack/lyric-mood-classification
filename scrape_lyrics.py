@@ -14,6 +14,8 @@ If
 """
 import lyricsgenius as genius
 import pandas as pd
+import datetime
+import logging
 import time
 import csv
 import os
@@ -25,6 +27,36 @@ CSV_NO_LYRICS = 'data/no_lyrics.csv'
 CSV_HEADER = ['msd_id', 'msd_artist', 'msd_title', 'mxm_id', 'mxm_artist', 'mxm_title']
 SKIP_LYRIC_CHECK_IF_KNOWN_BAD = True
 
+
+logger = logging.getLogger(__name__)
+
+
+def configure_logging(verbosity=1):
+
+    global logger
+
+    level = logging.INFO
+    if verbosity is not None and int(verbosity) > 0:
+        level = logging.DEBUG
+
+    logger.setLevel(logging.DEBUG)  # we adjust on console and file later
+    # create file handler which logs even debug messages
+    fh = logging.FileHandler(datetime.datetime.now().strftime('logs/scrape_lyrics__%Y-%m-%d_%H-%M.log'), 'w', 'utf-8')
+    fh.setLevel(logging.DEBUG)  # always log everything to file
+    # create console handler with a higher log level
+    ch = logging.StreamHandler()
+    ch.setLevel(level)  # only log to console what the user wants
+    # create formatter and add it to the handlers
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    # add the handlers to the logger
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+
+    return
+
+
 def musixmatch_mapping_to_csv():
     """
     Converts the musixmatch mapping file to a csv format for easier consumption
@@ -32,11 +64,11 @@ def musixmatch_mapping_to_csv():
 
     # to save time, do not execute again if conversion already exists
     if os.path.exists(CSV_MUSIXMATCH_MAPPING):
-        print('{0} already exists. Skipping csv conversion.'.format(CSV_MUSIXMATCH_MAPPING))
+        logger.info('{0} already exists. Skipping csv conversion.'.format(CSV_MUSIXMATCH_MAPPING))
         return
 
     if not os.path.exists(FILE_MUSIXMATCH_MAPPING):
-        print('{0} not found. Please run download_data.py first.'.format(FILE_MUSIXMATCH_MAPPING))
+        logger.error('{0} not found. Please run download_data.py first.'.format(FILE_MUSIXMATCH_MAPPING))
         return
 
     count = 0
@@ -53,14 +85,14 @@ def musixmatch_mapping_to_csv():
                 try:
                     split = line.strip().split('<SEP>')
                     if len(split) != len(header):
-                        print('interesting line: {0}'.format(line))
+                        logger.warning('interesting line: {0}'.format(line))
                     csvwriter.writerow(split)
                     count += 1
 
                 except Exception as exc:
-                    print(exc)
+                    logger.warning(exc)
 
-    print('Converted {0} songs from musixmatch mapping to csv.'.format(count))
+    logger.info('Converted {0} songs from musixmatch mapping to csv.'.format(count))
 
     return
 
@@ -123,15 +155,14 @@ def scrape_lyrics():
 
             # https://stackoverflow.com/questions/24761133/pandas-check-if-row-exists-with-certain-values
             if SKIP_LYRIC_CHECK_IF_KNOWN_BAD and (df_no_lyrics == row).all(1).any():
-                print('{0}: (artist={1}, title={2}) matched in {3}. Skipping.'.format(song_index, row['msd_artist'], row['mxm_artist'], CSV_NO_LYRICS))
+                logger.debug('{0}: (artist={1}, title={2}) matched in {3}. Skipping.'.format(song_index, row['msd_artist'], row['mxm_artist'], CSV_NO_LYRICS))
                 songs_skipped +=1
                 continue
 
             if os.path.exists(json_lyricfile):
-                print('{0}: {1} already downloaded. Skipping.'.format(song_index, json_lyricfile))
+                logger.debug('{0}: {1} already downloaded. Skipping.'.format(song_index, json_lyricfile))
                 songs_skipped +=1
                 continue
-
 
             try:
                 song = api.search_song(row['msd_title'], row['msd_artist'])
@@ -151,7 +182,7 @@ def scrape_lyrics():
                         # https://stackoverflow.com/questions/24284342/insert-a-row-to-pandas-dataframe/24287210
                         df_no_lyrics.loc[-1] = row
                         df_no_lyrics.index += 1
-                        print('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_artist']))
+                        logger.debug('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_artist']))
                         continue
 
                 songs_matched += 1
@@ -159,26 +190,27 @@ def scrape_lyrics():
                 # save_lyrics function: https://github.com/johnwmillr/LyricsGenius/blob/master/lyricsgenius/song.py
                 song.save_lyrics(filename=json_lyricfile, overwrite=True, verbose=False, format_='json')
                 song.save_lyrics(filename=txt_lyricfile, overwrite=True, verbose=False, format_='txt')
-                print('{0}: Success! (artist={1}, title={2}) saved to {3}.'.format(song_index, row['msd_artist'], row['msd_title'], json_lyricfile))
+                logger.debug('{0}: Success! (artist={1}, title={2}) saved to {3}.'.format(song_index, row['msd_artist'], row['msd_title'], json_lyricfile))
 
             except Exception as exc:
-                print('Problem: {0}'.format(songs_matched))
-                print(row)
-                print(exc)
+                logger.warning('Problem: {0}'.format(songs_matched))
+                logger.warning(row)
+                logger.warning(exc)
 
     except KeyboardInterrupt as kbi:
-        print(kbi)
-        print('saving no lyrics csv...')
+        logger.info(kbi)
+        logger.info('saving no lyrics csv...')
         df_no_lyrics.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False)
-        print('done.')
+        logger.info('done.')
 
-    print('{0} / {1} Song Lyrics Obtained! ({2} skipped)'.format(songs_matched, song_index, songs_skipped))
+    logger.info('{0} / {1} Song Lyrics Obtained! ({2} skipped)'.format(songs_matched, song_index, songs_skipped))
 
     return
 
 
 def main():
 
+    configure_logging()
     musixmatch_mapping_to_csv()
     scrape_lyrics()
 
