@@ -2,3 +2,4 @@
 logs/*
 data/*
 !data/mxm_mappings.csv
+!data/no_lyrics.csv
