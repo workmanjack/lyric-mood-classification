@@ -70,6 +70,8 @@ def musixmatch_mapping_to_csv():
         logger.error('{0} not found. Please run download_data.py first.'.format(FILE_MUSIXMATCH_MAPPING))
         return
 
+    start = time.time()
+
     count = 0
     with open(CSV_MUSIXMATCH_MAPPING, mode='w', encoding='utf-8', newline='') as csvfile:
         csvwriter = csv.writer(csvfile)
@@ -91,7 +93,11 @@ def musixmatch_mapping_to_csv():
                 except Exception as exc:
                     logger.warning(exc)
 
+    end = time.time()
+    elapsed_time = end - start
+
     logger.info('Converted {0} songs from musixmatch mapping to csv.'.format(count))
+    logger.info('Elapsed Time: {0} minutes'.format(elapsed_time / 60))
 
     return
 
@@ -126,6 +132,8 @@ def scrape_lyrics(artist_name_starts_with):
         artist_name_starts_with: character or string used to filter which artists we
         attempt to download lyrics for
     """
+
+    start = time.time()
 
     api = genius.Genius(client_access_token=get_api_token(), verbose=False)
 
@@ -209,7 +217,12 @@ def scrape_lyrics(artist_name_starts_with):
         df_no_lyrics.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False)
         logger.info('done.')
 
-    logger.info('{0} / {1} Song Lyrics Obtained! ({2} skipped)'.format(songs_matched, song_index, songs_skipped))
+    end = time.time()
+    elapsed_time = end - start
+
+    logger.info('{0} / {1} Song Lyrics Obtained! ({2} skipped)'.format(songs_matched, song_index - songs_skipped, songs_skipped))
+    logger.info('Elapsed Time: {0} minutes'.format(elapsed_time / 60))
+
 
     return
 
