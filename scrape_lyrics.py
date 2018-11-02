@@ -70,7 +70,7 @@ def get_api_token():
 def make_lyric_file_name(artist, track):
     # https://stackoverflow.com/questions/7406102/create-sane-safe-filename-from-any-unsafe-string
     keepcharacters = ('.','_')
-    filename = '{0}___{1}.json'.format(artist.replace(' ', '_'), track.replace(' ', '_'))
+    filename = '{0}___{1}'.format(artist.replace(' ', '_'), track.replace(' ', '_'))
     return "".join(c for c in filename if c.isalnum() or c in keepcharacters).rstrip()
 
 
@@ -93,26 +93,36 @@ def scrape_lyrics():
     # would it be more efficient to groupby artist name?
     # maybe, but you run the risk of missing a song if msd_artist is incorrect spelling
 
+    if not os.path.exists(CSV_NO_LYRICS):
+        with open(CSV_NO_LYRICS, mode='w', encoding='utf-8', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(CSV_HEADER)
     df_no_lyrics = pd.read_csv(CSV_NO_LYRICS, encoding='utf-8')
     df_no_lyrics = df_no_lyrics.sort_values('msd_artist')
 
-    with open(CSV_NO_LYRICS, mode='a', encoding='utf-8', newline='') as csvfile:
-        csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(CSV_HEADER)
+    song_index = 0
+    songs_skipped = 0
+    songs_matched = 0
 
-        song_index = 0
-        songs_matched = 0
+    try:
         for index, row in df.iterrows():
 
-            json_lyricfile = 'data/lyrics/{0}.json'.format(make_lyric_file_name(row['msd_artist'], row['msd_title']))
-            txt_lyricfile = 'data/lyrics/{0}.txt'.format(make_lyric_file_name(row['msd_artist'], row['msd_title']))
-            if os.path.exists(json_lyricfile):
-                print('{0}: {1} already downloaded. Skipping.'.format(song_index, json_lyricfile))
-                continue
+            song_index += 1
 
+            json_lyricfile = 'data/lyrics/json/{0}.json'.format(make_lyric_file_name(row['msd_artist'], row['msd_title']))
+            txt_lyricfile = 'data/lyrics/txt/{0}.txt'.format(make_lyric_file_name(row['msd_artist'], row['msd_title']))
+
+            # https://stackoverflow.com/questions/24761133/pandas-check-if-row-exists-with-certain-values
             if SKIP_LYRIC_CHECK_IF_KNOWN_BAD and (df_no_lyrics == row).all(1).any():
                 print('{0}: (artist={1}, title={2}) matched in {3}. Skipping.'.format(song_index, row['msd_artist'], row['mxm_artist'], CSV_NO_LYRICS))
+                songs_skipped +=1
                 continue
+
+            if os.path.exists(json_lyricfile):
+                print('{0}: {1} already downloaded. Skipping.'.format(song_index, json_lyricfile))
+                songs_skipped +=1
+                continue
+
 
             try:
                 song = api.search_song(row['msd_title'], row['msd_artist'])
@@ -129,7 +139,9 @@ def scrape_lyrics():
                         song = api.search_song(row['mxm_title'], row['mxm_artist'])
                     if not song:
                         # no luck... on to the next one
-                        csvwriter.writerow(row)
+                        # https://stackoverflow.com/questions/24284342/insert-a-row-to-pandas-dataframe/24287210
+                        df_no_lyrics.loc[-1] = row
+                        df_no_lyrics.index += 1
                         print('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_artist']))
                         continue
 
@@ -145,7 +157,13 @@ def scrape_lyrics():
                 print(row)
                 print(exc)
 
-    print('{0} Song Lyrics Obtained!'.format(songs_matched))
+    except KeyboardInterrupt as kbi:
+        print(kbi)
+        print('saving no lyrics csv...')
+        df_no_lyrics.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False)
+        print('done.')
+
+    print('{0} / {1} Song Lyrics Obtained! ({2} skipped)'.format(songs_matched, song_index, songs_skipped))
 
     return
 
