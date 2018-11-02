@@ -73,7 +73,7 @@ This will download the data into the _data_ directory. This will take several mi
 
 ## Scraping Lyrics
 
-We use the python package **lyricsgenius** for retrieving lyrics.
+**Important:** We use the python package **lyricsgenius** for retrieving lyrics. The package interfaces with the www.genius.com api for lyric access. In order to use the package, you'll need to create an account and get an api token. This requires provided an "app name" and "app url" to genius. Once you've done so, save your api key to `data/api.txt`.
 
 We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name. For more information, please see `scrape_lyrics.py`.
 

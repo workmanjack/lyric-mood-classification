@@ -13,6 +13,7 @@ directory.
 import lyricsgenius as genius
 import pandas as pd
 import datetime
+import argparse
 import logging
 import time
 import csv
@@ -113,19 +114,26 @@ def make_lyric_file_name(artist, track):
     return "".join(c for c in filename if c.isalnum() or c in keepcharacters).rstrip()
 
 
-def scrape_lyrics():
+def scrape_lyrics(artist_name_starts_with):
     """
     Iterate through the musixmatch csv file and attempt to find the lyrics for each
     with the genius api service
 
     A csv is created with the artist-song pairs that this function fails to find lyrics
     for.
+
+    Args:
+        artist_name_starts_with: character or string used to filter which artists we
+        attempt to download lyrics for
     """
 
-    api_token = get_api_token()
-    api = genius.Genius(client_access_token=api_token, verbose=False)
+    api = genius.Genius(client_access_token=get_api_token(), verbose=False)
 
     df = pd.read_csv(CSV_MUSIXMATCH_MAPPING, encoding='utf-8')
+    logger.info('{0} songs in mapping file.'.format(len(df)))
+    if artist_name_starts_with:
+        df = df[df['msd_artist'].str.startswith(artist_name_starts_with)]
+        logger.info('Filtered songs with startswith str "{0}". Mapping file now contains {1} songs.'.format(artist_name_starts_with, len(df)))
 
     # sort by artist so that we can
     df = df.sort_values('msd_artist')
@@ -206,11 +214,26 @@ def scrape_lyrics():
     return
 
 
+def parse_args():
+
+    # parse args
+    parser = argparse.ArgumentParser()
+
+    # universal args
+    parser.add_argument('-a', '--artist-first-letter', action='store', required=False, default=None, help='Attempt to download lyrics only for artists that start with this letter.')
+
+    args = parser.parse_args()
+
+    return args
+
+
 def main():
+
+    args = parse_args()
 
     configure_logging()
     musixmatch_mapping_to_csv()
-    scrape_lyrics()
+    scrape_lyrics(args.artist_first_letter)
 
 
 if __name__ == '__main__':
