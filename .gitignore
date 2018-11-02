@@ -1,5 +1,10 @@
-.venv_w266_project
 logs/*
 data/*
+# follow directions in readme to recreate the python venv
+.venv_w266_project
+# certain data files should be shared
 !data/mxm_mappings.csv
 !data/no_lyrics.csv
+!data/lyrics
+# to make sure that everyone has a log dir
+!logs/.gitkeep

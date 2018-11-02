@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # W266 Group Project: Lyric Mood Classification
 
 UC Berkeley Masters of Information &amp; Data Science
