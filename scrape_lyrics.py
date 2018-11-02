@@ -140,7 +140,7 @@ def scrape_lyrics(artist_name_starts_with):
     df = pd.read_csv(CSV_MUSIXMATCH_MAPPING, encoding='utf-8')
     logger.info('{0} songs in mapping file.'.format(len(df)))
     if artist_name_starts_with:
-        df = df[df['msd_artist'].str.startswith(artist_name_starts_with)]
+        df = df[df['msd_artist'].str.lower().str.startswith(artist_name_starts_with.lower())]
         logger.info('Filtered songs with startswith str "{0}". Mapping file now contains {1} songs.'.format(artist_name_starts_with, len(df)))
 
     # sort by artist so that we can
