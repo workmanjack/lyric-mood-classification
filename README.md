@@ -72,6 +72,12 @@ The original dataset is quite large. Too large, in fact, to be stored in the git
 
 This will download the data into the _data_ directory. This will take several minutes.
 
+## Scraping Lyrics
+
+We use the python package **lyricsgenius** for retrieving lyrics.
+
+We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name. For more information, please see `scrape_lyrics.py`.
+
 ## Useful Links
 
 (Python code for interacting with musicmatch lyrics)[https://github.com/tbertinmahieux/MSongsDB/tree/master/Tasks_Demos/Lyrics]
