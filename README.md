@@ -60,7 +60,7 @@ Then, run through the following commands:
 
 - `python -m venv .venv_w266_project`
 - Windows: `.venv_w266_project\Scripts\activate.bat`
-- Linux: `source .venv_w266_project/Scripts/activate`
+- Linux: `source .venv_w266_project/bin/activate`
 - `pip install -r requirements.txt` - this will install all required packages and might take several minutes
 
 ## Downloading Data
