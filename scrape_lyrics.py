@@ -109,7 +109,7 @@ def get_api_token():
 
 def make_lyric_file_name(artist, track):
     # https://stackoverflow.com/questions/7406102/create-sane-safe-filename-from-any-unsafe-string
-    keepcharacters = ('.','_')
+    keepcharacters = ('_')
     filename = '{0}___{1}'.format(artist.replace(' ', '_'), track.replace(' ', '_'))
     return "".join(c for c in filename if c.isalnum() or c in keepcharacters).rstrip()
 
