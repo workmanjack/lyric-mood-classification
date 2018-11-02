@@ -9,6 +9,7 @@ import os
 # api = genius.Genius()
 # artist = api.search_artist('Andy Shauf', max_songs=3)
 
+EXAMPLE_URL = 'http://lyrics.wikia.com/wiki/Warren_Zevon:Werewolves_of_london'
 
 FILE_MUSIXMATCH_MAPPING = 'data/musixmatch_matches/mxm_779k_matches.txt'
 CSV_MUSIXMATCH_MAPPING = 'data/mxm_mappings.csv'
