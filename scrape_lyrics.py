@@ -136,8 +136,7 @@ def scrape_lyrics(artist_name_starts_with):
     start = time.time()
 
     api = genius.Genius(client_access_token=get_api_token(), verbose=False)
-
-    df = pd.read_csv(CSV_MUSIXMATCH_MAPPING, encoding='utf-8')
+    df = pd.read_csv(CSV_MUSIXMATCH_MAPPING, encoding='utf-8', dtype = {'msd_artist':str, 'msd_title': str})
     logger.info('{0} songs in mapping file.'.format(len(df)))
     if artist_name_starts_with:
         df = df[df['msd_artist'].str.lower().str.startswith(artist_name_starts_with.lower())]
