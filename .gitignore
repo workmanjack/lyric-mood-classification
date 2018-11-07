@@ -5,6 +5,6 @@ data/*
 # certain data files should be shared
 !data/mxm_mappings.csv
 !data/no_lyrics.csv
-!data/lyrics
+# We can't upload the data to github
 # to make sure that everyone has a log dir
 !logs/.gitkeep

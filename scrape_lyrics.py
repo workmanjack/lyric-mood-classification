@@ -153,6 +153,7 @@ def scrape_lyrics(artist_name_starts_with):
             csvwriter.writerow(CSV_HEADER)
     df_no_lyrics = pd.read_csv(CSV_NO_LYRICS, encoding='utf-8')
     df_no_lyrics = df_no_lyrics.sort_values('msd_artist')
+    df_no_lyrics_update = pd.DataFrame(columns = CSV_HEADER)
 
     song_index = 0
     songs_skipped = 0
@@ -193,8 +194,8 @@ def scrape_lyrics(artist_name_starts_with):
                     if not song:
                         # no luck... on to the next one
                         # https://stackoverflow.com/questions/24284342/insert-a-row-to-pandas-dataframe/24287210
-                        df_no_lyrics.loc[-1] = row
-                        df_no_lyrics.index += 1
+                        df_no_lyrics_update.loc[-1] = row
+                        df_no_lyrics_update.index += 1
                         logger.debug('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_artist']))
                         continue
 
@@ -214,7 +215,7 @@ def scrape_lyrics(artist_name_starts_with):
         logger.info(kbi)
 
     logger.info('saving no lyrics csv...')
-    df_no_lyrics.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False)
+    df_no_lyrics_update.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False, mode='a', header=False)
     logger.info('done.')
 
     end = time.time()

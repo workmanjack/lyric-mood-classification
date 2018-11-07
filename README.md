@@ -62,6 +62,7 @@ Then, run through the following commands:
 - Windows: `.venv_w266_project\Scripts\activate.bat`
 - Linux: `source .venv_w266_project/bin/activate`
 - `pip install -r requirements.txt` - this will install all required packages and might take several minutes
+- `python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in paralell. use `fg` to switch between processes so you can quite with ^C
 
 ## Downloading Data
 
