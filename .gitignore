@@ -8,3 +8,5 @@ data/*
 # We can't upload the data to github
 # to make sure that everyone has a log dir
 !logs/.gitkeep
+__pycache__
+.ipynb_checkpoints

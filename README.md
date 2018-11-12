@@ -74,12 +74,16 @@ This will download the data into the _data_ directory. This will take several mi
 
 ## Scraping Lyrics
 
-**Important:** We use the python package **lyricsgenius** for retrieving lyrics. The package interfaces with the www.genius.com api for lyric access. In order to use the package, you'll need to create an account and get an api token. This requires provided an "app name" and "app url" to genius. Once you've done so, save your api key to `data/api.txt`.
+**Important:** We use the python package **lyricsgenius** for retrieving lyrics. The package interfaces with the www.genius.com api for lyric access. In order to use the package, you'll need to create an account and get an api token. This requires providing an "app name" and "app url" to genius. Once you've done so, save your api key to `data/api.txt`.
 
 We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name. For more information, please see `scrape_lyrics.py`.
 
 ## Useful Links
 
-(Python code for interacting with musicmatch lyrics)[https://github.com/tbertinmahieux/MSongsDB/tree/master/Tasks_Demos/Lyrics]
+[Python code for interacting with lastfm sqlite db](https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/demo_tags_db.py)
 
-(Scraping song lyrics from Genius.com)[https://www.johnwmillr.com/scraping-genius-lyrics/}
+[Python code for interacting with musicmatch lyrics](https://github.com/tbertinmahieux/MSongsDB/tree/master/Tasks_Demos/Lyrics)
+
+[Scraping song lyrics from Genius.com](https://www.johnwmillr.com/scraping-genius-lyrics/)
+
+
