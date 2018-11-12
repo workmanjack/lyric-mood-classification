@@ -195,7 +195,7 @@ def scrape_lyrics(artist_name_starts_with):
                         # https://stackoverflow.com/questions/24284342/insert-a-row-to-pandas-dataframe/24287210
                         df_no_lyrics.loc[-1] = row
                         df_no_lyrics.index += 1
-                        logger.debug('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_artist']))
+                        logger.debug('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_title']))
                         continue
 
                 songs_matched += 1
