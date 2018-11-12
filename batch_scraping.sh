@@ -6,9 +6,9 @@
 #       'y', 'Ä', 'l', 'k', 'n', 'f', 'c', 'h', 'e', 'x', 'r', '(', 'b',
 #       '.', '-', 'ü', 'Â', 'g', '+', 'Ó', 'v', 'µ', 'Í', '$', '!', 'Ö',
 #       '0', 'u', 'w', 'o', '#', ':', 'Æ', '}', '\x1c'], dtype=object)
-# python scrape_lyrics.py -a a
-# python scrape_lyrics.py -a b
-# python scrape_lyrics.py -a c
+python3 scrape_lyrics.py -a a
+python3 scrape_lyrics.py -a b
+python3 scrape_lyrics.py -a c
 # python scrape_lyrics.py -a d
 # python scrape_lyrics.py -a e
 # python scrape_lyrics.py -a g
@@ -17,13 +17,13 @@
 # python scrape_lyrics.py -a j
 # python scrape_lyrics.py -a k
 # python scrape_lyrics.py -a l
-python scrape_lyrics.py -a m
-python scrape_lyrics.py -a n
-python scrape_lyrics.py -a o
-python scrape_lyrics.py -a p
-python scrape_lyrics.py -a q
-python scrape_lyrics.py -a r
-python scrape_lyrics.py -a s
+# python scrape_lyrics.py -a m
+# python scrape_lyrics.py -a n
+# python scrape_lyrics.py -a o
+# python scrape_lyrics.py -a p
+# python scrape_lyrics.py -a q
+# python scrape_lyrics.py -a r
+# python scrape_lyrics.py -a s
 # python scrape_lyrics.py -a t
 # python scrape_lyrics.py -a u
 # python scrape_lyrics.py -a v

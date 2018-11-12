@@ -5,6 +5,10 @@ data/*
 # certain data files should be shared
 !data/mxm_mappings.csv
 !data/no_lyrics.csv
-!data/lyrics
+!data/indexed_lyrics.csv
+!data/labeled_lyrics.csv
+# We can't upload the data to github
 # to make sure that everyone has a log dir
 !logs/.gitkeep
+__pycache__
+.ipynb_checkpoints

@@ -30,7 +30,7 @@ SKIP_LYRIC_CHECK_IF_KNOWN_BAD = True
 logger = logging.getLogger(__name__)
 
 
-def configure_logging(verbosity=1):
+def configure_logging(logname, verbosity=1):
 
     global logger
 
@@ -40,7 +40,7 @@ def configure_logging(verbosity=1):
 
     logger.setLevel(logging.DEBUG)  # we adjust on console and file later
     # create file handler which logs even debug messages
-    fh = logging.FileHandler(datetime.datetime.now().strftime('logs/scrape_lyrics__%Y-%m-%d_%H-%M.log'), 'w', 'utf-8')
+    fh = logging.FileHandler(datetime.datetime.now().strftime('logs/{0}__%Y-%m-%d_%H-%M.log'.format(logname)), 'w', 'utf-8')
     fh.setLevel(logging.DEBUG)  # always log everything to file
     # create console handler with a higher log level
     ch = logging.StreamHandler()
@@ -153,6 +153,7 @@ def scrape_lyrics(artist_name_starts_with):
             csvwriter.writerow(CSV_HEADER)
     df_no_lyrics = pd.read_csv(CSV_NO_LYRICS, encoding='utf-8')
     df_no_lyrics = df_no_lyrics.sort_values('msd_artist')
+    df_no_lyrics_update = pd.DataFrame(columns = CSV_HEADER)
 
     song_index = 0
     songs_skipped = 0
@@ -193,10 +194,11 @@ def scrape_lyrics(artist_name_starts_with):
                     if not song:
                         # no luck... on to the next one
                         # https://stackoverflow.com/questions/24284342/insert-a-row-to-pandas-dataframe/24287210
-                        df_no_lyrics.loc[-1] = row
-                        df_no_lyrics.index += 1
-                        logger.debug('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_title']))
-                        continue
+
+                        df_no_lyrics_update.loc[-1] = row
+                        df_no_lyrics_update.index += 1
+                        logger.debug('{0}: No luck (artist={1}, title={2}). Saved to no lyrics csv.'.format(song_index, row['msd_artist'], row['mxm_artist']))
+                continue
 
                 songs_matched += 1
 
@@ -212,9 +214,10 @@ def scrape_lyrics(artist_name_starts_with):
 
     except KeyboardInterrupt as kbi:
         logger.info(kbi)
-        logger.info('saving no lyrics csv...')
-        df_no_lyrics.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False)
-        logger.info('done.')
+
+    logger.info('saving no lyrics csv...')
+    df_no_lyrics_update.to_csv(CSV_NO_LYRICS, encoding='utf-8', index=False, mode='a', header=False)
+    logger.info('done.')
 
     end = time.time()
     elapsed_time = end - start
@@ -243,7 +246,7 @@ def main():
 
     args = parse_args()
 
-    configure_logging()
+    configure_logging(logname='scrape_lyrics')
     musixmatch_mapping_to_csv()
     scrape_lyrics(args.artist_first_letter)
 

@@ -6,7 +6,14 @@ W266 Natural Language Processing with Deep Learning Group Project
 
 Team: Cyprian Gascoigne, Jack Workman, Yuchen Zhang
 
+### Table of Contents
+
+[Project Proposal](#project-proposal)<br/>
+[Dataset](#dataset)<br/>
+[Python Environment Setup](#python-environment-setup)<br/>
+
 ## Project Proposal
+<a name="project-proposal"/>
 
 https://docs.google.com/document/d/1ofGlfFS2aUMOvsI7ZhUnTVFt6m2Gls2x_Sw_QMRh3vI/edit
 
@@ -34,25 +41,22 @@ Paper References:
 - Lee, Won-Sook & Yang, Dan. (2010). Music Emotion Identification from Lyrics
 - Mihalcea, Rada & Strapparava, Carlo. (2012). Lyrics, Music, and Emotions.
 
-## Dataset
-
-- [Million Song Dataset (MSD)](https://labrosa.ee.columbia.edu/millionsong/)
-- [Last.fm dataset](https://labrosa.ee.columbia.edu/millionsong/lastfm) (component of MSD) maps songs to user "tags" based on Last.fm user input. These tags can be anything from a human emotion to genre to animals. [Here is a list of unique tags]( https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/lastfm_unique_tags.txt).
-- [MusiXmatch dataset](https://labrosa.ee.columbia.edu/millionsong/musixmatch) (component of MSD) is a collection of song lyrics mapped to song in a bag-of-words format
-
-## Challenges
-
-- MSD provides song->mood mapping at a song level (not per lyrical line). Is this okay?
-- MSD (through musiXmatch) provides song->lyric mapping in a bag-of-words format. Preferably we would have lyrics provided as sequences for an LSTM. Can write a web crawler to extract these lyrics? Can we join the MSD with another dataset like https://github.com/walkerkq/musiclyrics/blob/master/billboard_lyrics_1964-2015.csv?
-
-## Approach
+### Approach
 
 - Create dataset mapping a song and its lyrics to one of the set of moods used in Corona's and O'Mahony's paper. Split dataset into train, dev, and test.
 - Train an LSTM network with the train dataset and evaluate its performance on the dev dataset.
 - Adjust parameters as needed. Evaluate performance on the test dataset.
 - Sample the trained model to produce lyrics of a specified mood.
 
+## Dataset
+<a name="dataset"/>
+
+- [Million Song Dataset (MSD)](https://labrosa.ee.columbia.edu/millionsong/)
+- [Last.fm dataset](https://labrosa.ee.columbia.edu/millionsong/lastfm) (component of MSD) maps songs to user "tags" based on Last.fm user input. These tags can be anything from a human emotion to genre to animals. [Here is a list of unique tags]( https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/lastfm_unique_tags.txt).
+- [MusiXmatch dataset](https://labrosa.ee.columbia.edu/millionsong/musixmatch) (component of MSD) is a collection of song lyrics mapped to song in a bag-of-words format
+
 ## Python Environment Setup
+<a name="python-environment-setup"/>
 
 First, make sure you have Python 3.6+ installed.
 
@@ -62,8 +66,13 @@ Then, run through the following commands:
 - Windows: `.venv_w266_project\Scripts\activate.bat`
 - Linux: `source .venv_w266_project/bin/activate`
 - `pip install -r requirements.txt` - this will install all required packages and might take several minutes
+- `python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in paralell. use `fg` to switch between processes so you can quite with ^C
 
-## Downloading Data
+### Jupyter Notebooks
+
+Before interacting with Jupyter Notebooks in this repo, please first run the `setup_jupyter.bat` script. This script installs this repo's virtualenv as a kernel available to jupyter. Then, when using a notebook, click on Kernel -> Change Kernel -> .venv_w266_project to begin using our virtualenv's python and its packages.
+
+### Downloading Data
 
 The original dataset is quite large. Too large, in fact, to be stored in the github repo. To download the data, please run script download_data.py.
 
@@ -71,14 +80,31 @@ The original dataset is quite large. Too large, in fact, to be stored in the git
 
 This will download the data into the _data_ directory. This will take several minutes.
 
-## Scraping Lyrics
+### Scraping Lyrics
 
-**Important:** We use the python package **lyricsgenius** for retrieving lyrics. The package interfaces with the www.genius.com api for lyric access. In order to use the package, you'll need to create an account and get an api token. This requires provided an "app name" and "app url" to genius. Once you've done so, save your api key to `data/api.txt`.
+**Important:** We use the python package **lyricsgenius** for retrieving lyrics. The package interfaces with the www.genius.com api for lyric access. In order to use the package, you'll need to create an account and get an api token. This requires providing an "app name" and "app url" to genius. Once you've done so, save your api key to `data/api.txt`.
 
-We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name. For more information, please see `scrape_lyrics.py`.
+We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name.
+
+For more information, please see `scrape_lyrics.py`.
+
+### Indexing Lyrics
+
+After scraping and downloading lyrics into txt files, we next index the files and perform basic checks on the validity of each. The checks include:
+1. Are the lyrics in English?
+2. Does a downloaded lyric text file exist?
+3. What is the total word count?
+
+For more information, see script `index_lyrics.py`.
+
+### Labeling Lyrics
+
+Now that we have a nice index built, we can easily match the lyrics to the mood tags from the last.fm dataset. To do this, we iterate over each row of the index, query the sqlite Last.fm database for all associated tags, then attempt to match tags against our Mood Categories.
+
+For more information, see script `label_lyrics.py`.
 
 ## Useful Links
 
-(Python code for interacting with musicmatch lyrics)[https://github.com/tbertinmahieux/MSongsDB/tree/master/Tasks_Demos/Lyrics]
-
-(Scraping song lyrics from Genius.com)[https://www.johnwmillr.com/scraping-genius-lyrics/}
+[Python code for interacting with lastfm sqlite db](https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/demo_tags_db.py)<br/>
+[Python code for interacting with musicmatch lyrics](https://github.com/tbertinmahieux/MSongsDB/tree/master/Tasks_Demos/Lyrics)<br/>
+[Scraping song lyrics from Genius.com](https://www.johnwmillr.com/scraping-genius-lyrics/)<br/>
