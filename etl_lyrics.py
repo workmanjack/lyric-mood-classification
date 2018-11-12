@@ -20,13 +20,6 @@ def read_file_contents(path, read_json=False):
     return contents
 
 
-def merge_etl_lyrics_csv(csv_path, new_df):
-    old_df = pd.read_csv(csv_path, encoding='utf-8')
-    merged = old_df.merge(new_df, how='outer', on=['msd_id', 'msd_artist', 'msd_title', 'mxm_id', 'mxm_artist', 'mxm_title'])
-    import pdb; pdb.set_trace()
-    return merged
-
-
 def add_col_if_dne(df, col, value):
     if col not in df.columns:
         logger.debug('Adding column "{0}" to lyrics dataframe'.format(col))
@@ -47,7 +40,7 @@ def etl_lyrics(csv_input, csv_output, artist_first_letter=None):
     df = add_col_if_dne(df, 'lyrics_filename', -1)
 
     df = df.sort_values('msd_artist')
-    return
+
     end = time.time()
     elapsed_time = end - start
 
