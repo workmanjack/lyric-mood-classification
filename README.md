@@ -69,6 +69,10 @@ Then, run through the following commands:
 - `pip install -r requirements.txt` - this will install all required packages and might take several minutes
 - `python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in paralell. use `fg` to switch between processes so you can quite with ^C
 
+### Jupyter Notebooks
+
+Before interacting with Jupyter Notebooks in this repo, please first run the `setup_jupyter.bat` script. This script installs this repo's virtualenv as a kernel available to jupyter. Then, when using a notebook, click on Kernel -> Change Kernel -> .venv_w266_project to begin using our virtualenv's python and its packages.
+
 ### Downloading Data
 
 The original dataset is quite large. Too large, in fact, to be stored in the github repo. To download the data, please run script download_data.py.
@@ -81,7 +85,9 @@ This will download the data into the _data_ directory. This will take several mi
 
 **Important:** We use the python package **lyricsgenius** for retrieving lyrics. The package interfaces with the www.genius.com api for lyric access. In order to use the package, you'll need to create an account and get an api token. This requires providing an "app name" and "app url" to genius. Once you've done so, save your api key to `data/api.txt`.
 
-We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name. For more information, please see `scrape_lyrics.py`.
+We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name.
+
+For more information, please see `scrape_lyrics.py`.
 
 ### Indexing Lyrics
 
@@ -90,12 +96,13 @@ After scraping and downloading lyrics into txt files, we next index the files an
 2. Does a downloaded lyric text file exist?
 3. What is the total word count?
 
-### Mapping the Lyric Mood Labels
+For more information, see script `index_lyrics.py`.
 
+### Labeling Lyrics
 
-### Jupyter Notebooks
+Now that we have a nice index built, we can easily match the lyrics to the mood tags from the last.fm dataset. To do this, we iterate over each row of the index, query the sqlite Last.fm database for all associated tags, then attempt to match tags against our Mood Categories.
 
-Before interacting with Jupyter Notebooks in this repo, please first run the `setup_jupyter.bat` script. This script installs this repo's virtualenv as a kernel available to jupyter. Then, when using a notebook, click on Kernel -> Change Kernel -> .venv_w266_project to begin using our virtualenv's python and its packages.
+For more information, see script `label_lyrics.py`.
 
 ## Useful Links
 
