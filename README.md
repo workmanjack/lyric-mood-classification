@@ -87,7 +87,7 @@ We attempt to match songs on all combinations of the MSD song title, MSD artist 
 
 After scraping and downloading lyrics into txt files, we next index the files and perform basic checks on the validity of each. The checks include:
 1. Are the lyrics in English?
-2. Are there lyrics available?
+2. Does a downloaded lyric text file exist?
 3. What is the total word count?
 
 ### Jupyter Notebooks

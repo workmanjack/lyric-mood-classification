@@ -37,6 +37,7 @@ def etl_lyrics(csv_input, csv_output, artist_first_letter=None):
     # if starting from mxm_mapping csv, we need to add additional cols
     df = add_col_if_dne(df, 'is_english', -1)
     df = add_col_if_dne(df, 'lyrics_available', -1)
+    df = add_col_if_dne(df, 'wordcount', -1)
     df = add_col_if_dne(df, 'lyrics_filename', -1)
 
     df = df.sort_values('msd_artist')
@@ -69,6 +70,7 @@ def etl_lyrics(csv_input, csv_output, artist_first_letter=None):
                 logger.debug('{0}, {1}: already processed, skipping'.format(count_total, txt_lyricfile))
                 continue
 
+            wordcount = 0
             lyrics_available = 0
             is_english = 0
 
@@ -92,21 +94,17 @@ def etl_lyrics(csv_input, csv_output, artist_first_letter=None):
                     if not is_english:
 
                         logger.debug('{0}, {1}: not english'.format(count_total, txt_lyricfile))
-                        df.drop(index, inplace=True)
                         count_nonenglish += 1
+
+                    wordcount = len(contents.split())
 
                     # success!
                     logger.debug('{0}, {1}: success'.format(count_total, txt_lyricfile))
                     count_success += 1
 
-                # else:
-                #     # no lyrics so we drop it
-                #     logger.debug('{0}, {1}: dropping -> no lyrics'.format(count_total, txt_lyricfile))
-                #     df.drop(index, inplace=True)
-                #     count_nolyrics += 1
-
             df.loc[index, 'lyrics_filename'] = lyrics_filename
             df.loc[index, 'lyrics_available'] = lyrics_available
+            df.loc[index, 'wordcount'] = wordcount
             df.loc[index, 'is_english'] = is_english
 
             count_total += 1
