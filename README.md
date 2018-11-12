@@ -11,10 +11,9 @@ Team: Cyprian Gascoigne, Jack Workman, Yuchen Zhang
 [Project Proposal](#project-proposal)<br/>
 [Dataset](#dataset)<br/>
 [Python Environment Setup](#python-environment-setup)<br/>
-[Useful Links](#useful-links)<br/>
 
-<a name="project-proposal"/>
 ## Project Proposal
+<a name="project-proposal"/>
 
 https://docs.google.com/document/d/1ofGlfFS2aUMOvsI7ZhUnTVFt6m2Gls2x_Sw_QMRh3vI/edit
 
@@ -49,15 +48,15 @@ Paper References:
 - Adjust parameters as needed. Evaluate performance on the test dataset.
 - Sample the trained model to produce lyrics of a specified mood.
 
-<a name="dataset"/>
 ## Dataset
+<a name="dataset"/>
 
 - [Million Song Dataset (MSD)](https://labrosa.ee.columbia.edu/millionsong/)
 - [Last.fm dataset](https://labrosa.ee.columbia.edu/millionsong/lastfm) (component of MSD) maps songs to user "tags" based on Last.fm user input. These tags can be anything from a human emotion to genre to animals. [Here is a list of unique tags]( https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/lastfm_unique_tags.txt).
 - [MusiXmatch dataset](https://labrosa.ee.columbia.edu/millionsong/musixmatch) (component of MSD) is a collection of song lyrics mapped to song in a bag-of-words format
 
-<a name="python-environment-setup"/>
 ## Python Environment Setup
+<a name="python-environment-setup"/>
 
 First, make sure you have Python 3.6+ installed.
 
