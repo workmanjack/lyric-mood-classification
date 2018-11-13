@@ -1,4 +1,5 @@
 from langdetect import detect
+from langdetect.lang_detect_exception import LangDetectException
 import argparse
 import pandas as pd
 import time
@@ -12,12 +13,34 @@ CSV_INDEX_LYRICS = 'data/indexed_lyrics.csv'
 
 def read_file_contents(path, read_json=False):
     contents = None
-    with open(path, 'r') as f:
-        if read_json:
-            contents = json.load(f)
-        else:
-            contents = f.read()
-    return contents
+    encoding = None
+    try:
+        with open(path, 'r') as f:
+            encoding = 'default'
+            if read_json:
+                contents = json.load(f)
+            else:
+                contents = f.read()
+    except:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                encoding = 'utf-8'
+                if read_json:
+                    contents = json.load(f)
+                else:
+                    contents = f.read()
+        except:
+            try:
+                with open(path, 'r', encoding='utf-16') as f:
+                    encoding = 'utf-16'
+                    if read_json:
+                        contents = json.load(f)
+                    else:
+                        contents = f.read()
+            except:
+                pass
+    finally:
+        return contents, encoding
 
 
 def add_col_if_dne(df, col, value):
@@ -53,6 +76,7 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
     count_nonenglish = 0
     count_nolyrics = 0
     count_success = 0
+    count_language_error = 0
 
     start = time.time()
 
@@ -67,6 +91,7 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
                 continue
 
             if row.get('lyrics_available', None) >= 0:
+                count_total += 1
                 logger.debug('{0}, {1}: already processed, skipping'.format(count_total, txt_lyricfile))
                 continue
 
@@ -76,31 +101,38 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
 
             if not os.path.exists(txt_lyricfile):
 
-                logger.debug('{0}, {1}: no lyric file'.format(count_total, txt_lyricfile))
+                logger.debug('{0} {1}: no lyric file'.format(count_total, txt_lyricfile))
 
             else:
 
                 lyrics_available = 1
-                contents = read_file_contents(txt_lyricfile)
+                contents, encoding = read_file_contents(txt_lyricfile)
 
                 if contents:
-
+                    
                     # drop the non-english
                     # possible speed improvement available via pandas:
                     # https://stackoverflow.com/questions/49261711/detecting-language-of-a-text-document-other-than-using-iterrows
-                    lang = detect(str(contents))
+                    try:
+                        lang = detect(str(contents))
+                    except LangDetectException as e:
+                        logger.info(str(e))
+                        logger.debug('{0} {1} {2} caused a language error.'.format(count_total, txt_lyricfile, encoding))
+                        lyrics_available = 0
+                        count_language_error += 1
 
                     is_english = 1 if lang == 'en' else 0
                     if not is_english:
 
-                        logger.debug('{0}, {1}: not english'.format(count_total, txt_lyricfile))
+                        logger.debug('{0} {1}: not english'.format(count_total, txt_lyricfile))
                         count_nonenglish += 1
 
                     wordcount = len(contents.split())
 
                     # success!
-                    logger.debug('{0}, {1}: success'.format(count_total, txt_lyricfile))
-                    count_success += 1
+                    if lyrics_available:
+                        logger.debug('{0} {1} {2}: success'.format(count_total, txt_lyricfile, encoding ))
+                        count_success += 1
 
             df.loc[index, 'lyrics_filename'] = lyrics_filename
             df.loc[index, 'lyrics_available'] = lyrics_available
@@ -111,6 +143,9 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
 
     except KeyboardInterrupt as kbi:
         logger.info(str(kbi))
+    except Exception as e:
+        print(txt_lyricfile, contents)
+        raise e
 
     logger.info('saving indexed lyric data to {0}'.format(csv_output))
     df = df.sort_values('msd_artist')
@@ -121,8 +156,10 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
 
     logger.info('{0} Artist/pairs processed'.format(count_total))
     logger.info('{0} deemed not english'.format(count_nonenglish))
-    logger.info('{0} lacking lyrics'.format(count_total))
+    logger.info('{0} total rows'.format(count_total))
+    logger.info('{0} lacking lyrics'.format(count_total-count_success))
     logger.info('{0} songs ready'.format(count_success))
+    logger.info('{0} songs had an error for language.'.format(count_language_error))
 
     logger.info('Elapsed Time: {0} minutes'.format(elapsed_time / 60))
 
