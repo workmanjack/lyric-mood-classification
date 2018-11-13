@@ -87,7 +87,7 @@ We attempt to match songs on all combinations of the MSD song title, MSD artist 
 
 For more information, please see `scrape_lyrics.py`.
 
-`python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in parallel (for artists starting with letter a or b). use `fg` to switch between processes so you can quite with ^C
+`python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in parallel (for artists starting with letter a or b). use `fg` to switch between processes so you can quit with ^C
 
 ### Indexing Lyrics
 
