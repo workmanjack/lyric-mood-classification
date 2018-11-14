@@ -66,7 +66,6 @@ Then, run through the following commands:
 - Windows: `.venv_w266_project\Scripts\activate.bat`
 - Linux: `source .venv_w266_project/bin/activate`
 - `pip install -r requirements.txt` - this will install all required packages and might take several minutes
-- `python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in paralell. use `fg` to switch between processes so you can quite with ^C
 
 ### Jupyter Notebooks
 
@@ -87,6 +86,8 @@ This will download the data into the _data_ directory. This will take several mi
 We attempt to match songs on all combinations of the MSD song title, MSD artist name, MXM song title, and MXM artist name.
 
 For more information, please see `scrape_lyrics.py`.
+
+`python scrape_lyrics.py -t a & python scrape_lyrics.py -t b` to run in parallel (for artists starting with letter a or b). use `fg` to switch between processes so you can quit with ^C
 
 ### Indexing Lyrics
 
