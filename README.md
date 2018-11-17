@@ -55,6 +55,8 @@ Paper References:
 - [Last.fm dataset](https://labrosa.ee.columbia.edu/millionsong/lastfm) (component of MSD) maps songs to user "tags" based on Last.fm user input. These tags can be anything from a human emotion to genre to animals. [Here is a list of unique tags]( https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/lastfm_unique_tags.txt).
 - [MusiXmatch dataset](https://labrosa.ee.columbia.edu/millionsong/musixmatch) (component of MSD) is a collection of song lyrics mapped to song in a bag-of-words format
 
+To unzip the .bz2 files in the data dir, use `tar xvjf <file.tar.bz2>` ([source](http://how-to.wikia.com/wiki/How_to_untar_a_tar_file_or_gzip-bz2_tar_file)
+
 ## Python Environment Setup
 <a name="python-environment-setup"/>
 
@@ -70,6 +72,8 @@ Then, run through the following commands:
 ### Jupyter Notebooks
 
 Before interacting with Jupyter Notebooks in this repo, please first run the `setup_jupyter.bat` script. This script installs this repo's virtualenv as a kernel available to jupyter. Then, when using a notebook, click on Kernel -> Change Kernel -> .venv_w266_project to begin using our virtualenv's python and its packages.
+
+To set up jupyter notebook on Ubuntu, [use this guide](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-jupyter-notebook-to-run-ipython-on-ubuntu-16-04).
 
 ### Downloading Data
 
