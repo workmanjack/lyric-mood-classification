@@ -218,11 +218,12 @@ class lyrics2vec(object):
         #skip_window = 4
         #num_skips = 2  # How many times to reuse an input to generate a label.
         #num_sampled = 64  # Number of negative examples to sample.
-        #data_index = 0  # reset data_index for batch generation
-
+        
         logger.info('Building lyrics2vec graph')
         logger.info('V={0}, batch_size={1}, embedding_size={2}, skip_window={3}, num_skips={4}, num_sampled={4}'.format(
             V, batch_size, embedding_size, skip_window, num_skips, num_sampled))
+        data_index = 0  # reset data_index for batch generation
+        
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
         # construction are also the most frequent. These 3 variables are used only for
