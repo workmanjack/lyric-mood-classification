@@ -19,6 +19,8 @@ import time
 import csv
 import os
 
+from download_data import DATA_DIR
+
 
 FILE_MUSIXMATCH_MAPPING = 'data/musixmatch_matches/mxm_779k_matches.txt'
 CSV_MUSIXMATCH_MAPPING = 'data/mxm_mappings.csv'
@@ -28,6 +30,9 @@ SKIP_LYRIC_CHECK_IF_KNOWN_BAD = True
 
 
 logger = logging.getLogger(__name__)
+LYRICS_DIR = os.path.join(DATA_DIR, 'lyrics')
+LYRICS_JSON_DIR = os.path.join(LYRICS_DIR, 'json')
+LYRICS_TXT_DIR = os.path.join(LYRICS_DIR, 'txt')
 
 
 def configure_logging(logname, verbosity=1):
@@ -164,8 +169,8 @@ def scrape_lyrics(artist_name_starts_with):
 
             song_index += 1
 
-            json_lyricfile = 'data/lyrics/json/{0}.json'.format(make_lyric_file_name(row['msd_artist'], row['msd_title']))
-            txt_lyricfile = 'data/lyrics/txt/{0}.txt'.format(make_lyric_file_name(row['msd_artist'], row['msd_title']))
+            json_lyricfile = '{0}/{1}.json'.format(LYRICS_JSON_DIR, make_lyric_file_name(row['msd_artist'], row['msd_title']))
+            txt_lyricfile = '{0}/txt/{1}.txt'.format(LYRICS_TXT_DIR, make_lyric_file_name(row['msd_artist'], row['msd_title']))
 
             # https://stackoverflow.com/questions/24761133/pandas-check-if-row-exists-with-certain-values
             if SKIP_LYRIC_CHECK_IF_KNOWN_BAD and (df_no_lyrics == row).all(1).any():
