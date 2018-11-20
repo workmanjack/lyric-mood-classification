@@ -108,6 +108,14 @@ Now that we have a nice index built, we can easily match the lyrics to the mood 
 
 For more information, see script `label_lyrics.py`.
 
+### lyrics2vec
+
+To form our word embeddings, we make use of the word2vec model as defined by [Mikolov et al](https://papers.nips.cc/paper/5021-distributed-representations-of-words-and-phrases-and-their-compositionality.pdf) and the [implementation provided by TensorFlow](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/tutorials/word2vec/word2vec_basic.py). 
+
+This script contains a lyrics2vec python class that saves its embeddings and data as python pickle files. The pickle files can be reused later by classifiers as needed.
+
+An example of the lyrics2vec implementation can be seen in the lyrics2vec.py's main function as well as the word_embeddings.ipynb notebook.
+
 ## Useful Links
 
 [Python code for interacting with lastfm sqlite db](https://labrosa.ee.columbia.edu/millionsong/sites/default/files/lastfm/demo_tags_db.py)<br/>

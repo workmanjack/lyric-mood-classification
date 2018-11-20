@@ -8,12 +8,17 @@ import collections
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-#import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 from scrape_lyrics import LYRICS_TXT_DIR
 from index_lyrics import read_file_contents
 from scrape_lyrics import configure_logging, logger
 from tensorflow.contrib.tensorboard.plugins import projector
+
+# workaround for strange _tinker3 import error in matplotlib that didn't occur in jupyter notebook
+# https://stackoverflow.com/questions/47778550/need-tkinter-on-my-python-3-6-installation-windows-10
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 # NLTK materials - make sure that you have stopwords and punkt for some reason
 import nltk
@@ -51,6 +56,7 @@ def picklify(data, dest):
     """
     with open(dest, 'wb') as outfile:
         pickle.dump(data ,outfile)
+    logger.debug('pickled {0} to {1}'.format(type(data), dest))
     return
 
 
@@ -66,6 +72,7 @@ def unpicklify(src):
     data = None
     with open(src, 'rb') as infile:
          data = pickle.load(infile)
+    logger.debug('unpickled {0} from {1}'.format(type(data), src))
     return data
         
 
@@ -187,6 +194,7 @@ class lyrics2vec(object):
             self.dictionary = unpicklify(LYRICS2VEC_DICT_PICKLE)
             self.reversed_dictionary = unpicklify(LYRICS2VEC_REVDICT_PICKLE)
             loaded = True
+            logger.info('datasets successfully loaded via pickle')
         else:
             logger.info('cannot load datasets! no pickle data files found')
         return loaded
@@ -196,13 +204,14 @@ class lyrics2vec(object):
         picklify(self.count, LYRICS2VEC_COUNT_PICKLE)
         picklify(self.dictionary, LYRICS2VEC_DICT_PICKLE)
         picklify(self.reversed_dictionary, LYRICS2VEC_REVDICT_PICKLE)
+        logger.info('datasets successfully pickled')
         return
     
     def train(self, V=50000, batch_size=128, embedding_size=128, skip_window=4, num_skips=2, num_sampled=64):
         """
         Step 4: Build and train a skip-gram model.
         """
-
+        
         #batch_size = 128
         #embedding_size = 128  # Dimension of the embedding vector.
         #skip_window = 1  # How many words to consider left and right.
@@ -211,6 +220,9 @@ class lyrics2vec(object):
         #num_sampled = 64  # Number of negative examples to sample.
         #data_index = 0  # reset data_index for batch generation
 
+        logger.info('Building lyrics2vec graph')
+        logger.info('V={0}, batch_size={1}, embedding_size={2}, skip_window={3}, num_skips={4}, num_sampled={4}'.format(
+            V, batch_size, embedding_size, skip_window, num_skips, num_sampled))
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
         # construction are also the most frequent. These 3 variables are used only for
@@ -285,6 +297,7 @@ class lyrics2vec(object):
             # Create a saver.
             saver = tf.train.Saver()
 
+        logger.info('Beginning graph training')
         start = time.time()
 
         num_steps = 100001
@@ -368,17 +381,28 @@ class lyrics2vec(object):
     def save_embeddings(self, dest=LYRICS2VEC_EMBEDDINGS_PICKLE):
         picklify(self.final_embeddings, dest)
         return
+    
+    def load_embeddings(self, src=LYRICS2VEC_EMBEDDINGS_PICKLE):
+        loaded = False
+        if os.path.exists(LYRICS2VEC_EMBEDDINGS_PICKLE):
+            self.final_embeddings = unpicklify(LYRICS2VEC_EMBEDDINGS_PICKLE)
+            loaded = True
+        else:
+            logger.info('cannot load final embeddings! no pickle data file found')
+        return loaded
 
-    def plot_with_labels(low_dim_embs, labels, filename):
+    def plot_with_labels(self, filename):
         """
         Function to draw visualization of distance between embeddings.
         """
-        tsne = TSNE(
-          perplexity=30, n_components=2, init='pca', n_iter=5000, method='exact')
+        
+        logger.info('Beginning label plotting')
+        start = time.time()
+        
+        tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000, method='exact')
         plot_only = 500
         low_dim_embs = tsne.fit_transform(self.final_embeddings[:plot_only, :])
         labels = [self.reversed_dictionary[i] for i in range(plot_only)]
-        plot_with_labels(low_dim_embs, labels, os.path.join(LOGS_TF_DIR, 'tsne.png'))
 
         assert low_dim_embs.shape[0] >= len(labels), 'More labels than embeddings'
         plt.figure(figsize=(18, 18))  # in inches
@@ -395,6 +419,7 @@ class lyrics2vec(object):
 
             plt.savefig(filename)
         
+        logger.info('Elapsed Time: {0}'.format((time.time() - start) / 60))
         logger.info('saved plot at {0}'.format(filename))
 
     def __repr__(self):
@@ -416,12 +441,14 @@ def main():
         words = LyricsVectorizer.extract_words(LYRICS_TXT_DIR, lyrics_preprocessing, words_file=VOCABULARY_FILE)
         LyricsVectorizer.build_dataset(V, words)
         LyricsVectorizer.save_datasets()
-    else:
-        logger.info('datasets loaded from pickles')
 
-    LyricsVectorizer.train(V=V)
-    LyricsVectorizer.save_embeddings()
-     
+    # only train embeddings if we absolutely need to as it takes a while!
+    embeddings_loaded = LyricsVectorizer.load_embeddings()
+    if not embeddings_loaded:
+        LyricsVectorizer.train(V=V)
+        LyricsVectorizer.save_embeddings()
+
+    LyricsVectorizer.plot_with_labels(os.path.join(LOGS_TF_DIR, 'embeddings.png'))
     
     return
     
