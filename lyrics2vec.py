@@ -26,6 +26,7 @@ from nltk import word_tokenize
 from nltk.corpus import stopwords
 
 
+VOCAB_SIZE = 50000
 LOGS_TF_DIR = 'logs/tf'
 VOCABULARY_FILE = os.path.join(LOGS_TF_DIR, 'vocabulary.txt')
 LYRICS2VEC_DATA_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_data.pickle')
@@ -432,15 +433,13 @@ def main():
 
     configure_logging(logname='lyrics2vec')
     
-    V = 50000
-    
     LyricsVectorizer = lyrics2vec()
     # only extract words if we absolutely need to as it takes ~5 minutes
     # first look for pickled datasets
     datasets_loaded = LyricsVectorizer.load_datasets()
     if not datasets_loaded:
         words = LyricsVectorizer.extract_words(LYRICS_TXT_DIR, lyrics_preprocessing, words_file=VOCABULARY_FILE)
-        LyricsVectorizer.build_dataset(V, words)
+        LyricsVectorizer.build_dataset(VOCAB_SIZE, words)
         LyricsVectorizer.save_datasets()
 
     # only train embeddings if we absolutely need to as it takes a while!
