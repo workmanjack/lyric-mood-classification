@@ -111,51 +111,38 @@ class lyrics2vec(object):
             LyricsVectorizer.build_dataset(VOCAB_SIZE, words)
             LyricsVectorizer.save_datasets()
         return LyricsVectorizer
-
-    def _generate_batch(self, data, batch_size, num_skips, skip_window):
-        assert batch_size % num_skips == 0
-        assert num_skips <= 2 * skip_window
-        batch = np.ndarray(shape=(batch_size), dtype=np.int32)
-        context = np.ndarray(shape=(batch_size, 1), dtype=np.int32)
-        span = 2 * skip_window + 1  # [ skip_window input_word skip_window ]
-        buffer = collections.deque(maxlen=span)
-        for _ in range(span):
-            buffer.append(data[self.data_index])
-            self.data_index = (self.data_index + 1) % len(data)
-        for i in range(batch_size // num_skips):
-            target = skip_window  # input word at the center of the buffer
-            targets_to_avoid = [skip_window]
-            for j in range(num_skips):
-                while target in targets_to_avoid:
-                    target = random.randint(0, span - 1)
-                targets_to_avoid.append(target)
-                batch[i * num_skips + j] = buffer[skip_window]  # this is the input word
-                context[i * num_skips + j, 0] = buffer[target]  # these are the context words
-            buffer.append(data[self.data_index])
-            self.data_index = (self.data_index + 1) % len(data)
-        # Backtrack a little bit to avoid skipping words in the end of a batch
-        self.data_index = (self.data_index + len(data) - span) % len(data)
-        return batch, context
-    
-    def extract_words(self, root_dir, preprocessing_func, words_file=None, verbose=True):
+  
+    def extract_words(self, preprocessing_func, root_dir=LYRICS_TXT_DIR, words_file=VOCABULARY_FILE):
         """
         Iterates over all files in <root_dir>, reads contents, applies
         <preprocessing_func> on text, and returns a python list of all words
+        
+        Args:
+          preprocessing_func: function, function to tokenize and possibly perform more ops to text
+          root_dir: str, root dir of lyrics (default: LYRICS_TXT_DIR)
+          words_file: str, path to vocabulary file (default: VOCABULARY_FILE)
         """
         start = time.time()
 
         words = list()
         if words_file and os.path.exists(words_file):
-            logger.info('words file already exists! {0}'.format(words_file))
+            logger.info('Words file already exists at {0}'.format(words_file))
+            logger.info('Words will be read from words file to save time.')
             with open(words_file, 'r', encoding='utf-8') as f:
                 for line in f:
                     words.append(line.replace('\n', ''))
         else:
-            lyricfiles = os.listdir(LYRICS_TXT_DIR)
+            if words_file:
+                logger.warning('Provided words file path "{0}" does not exist. Using {1} instead.'.format(words_file, VOCABULARY_FILE))
+                words_file = VOCABULARY_FILE
+            else:
+                logger.info('No word_file provided. Creating new word file at {0}.'.format(VOCABULARY_FILE))
+                words_file = VOCABULARY_FILE
+            lyricfiles = os.listdir(root_dir)
             num_files = len(lyricfiles)
             contents_processed = 0
             for count, lyricfile in enumerate(lyricfiles):
-                lyricfile = os.path.join(LYRICS_TXT_DIR, lyricfile)
+                lyricfile = os.path.join(root_dir, lyricfile)
                 if count % 10000 == 0:
                     logger.debug('{0}/{1} lyric files processed. {2:.02f} minutes elapsed. {3} contents processed. {4} words acquired.'.format(
                         count, num_files, (time.time() - start) / 60, contents_processed, len(words)))
@@ -166,7 +153,7 @@ class lyrics2vec(object):
                     #songs.append(tokens)
                     contents_processed += 1
 
-            logger.info('saving words to file {0}'.format(words_file))
+            logger.info('Saving words to file {0}'.format(words_file))
             with open(words_file, 'w', encoding='utf-8') as f:
                 for word in words:
                     f.write(word + '\n')
@@ -210,7 +197,6 @@ class lyrics2vec(object):
             self.data.append(index)
         self.count[0][1] = unk_count
         self.reversed_dictionary = dict(zip(self.dictionary.values(), self.dictionary.keys()))
-        #return data, count, dictionary, reversed_dictionary
         return
     
     def transform(self, lyrics):
@@ -249,6 +235,31 @@ class lyrics2vec(object):
         logger.info('datasets successfully pickled')
         return
     
+    def _generate_batch(self, data, batch_size, num_skips, skip_window):
+        assert batch_size % num_skips == 0
+        assert num_skips <= 2 * skip_window
+        batch = np.ndarray(shape=(batch_size), dtype=np.int32)
+        context = np.ndarray(shape=(batch_size, 1), dtype=np.int32)
+        span = 2 * skip_window + 1  # [ skip_window input_word skip_window ]
+        buffer = collections.deque(maxlen=span)
+        for _ in range(span):
+            buffer.append(data[self.data_index])
+            self.data_index = (self.data_index + 1) % len(data)
+        for i in range(batch_size // num_skips):
+            target = skip_window  # input word at the center of the buffer
+            targets_to_avoid = [skip_window]
+            for j in range(num_skips):
+                while target in targets_to_avoid:
+                    target = random.randint(0, span - 1)
+                targets_to_avoid.append(target)
+                batch[i * num_skips + j] = buffer[skip_window]  # this is the input word
+                context[i * num_skips + j, 0] = buffer[target]  # these are the context words
+            buffer.append(data[self.data_index])
+            self.data_index = (self.data_index + 1) % len(data)
+        # Backtrack a little bit to avoid skipping words in the end of a batch
+        self.data_index = (self.data_index + len(data) - span) % len(data)
+        return batch, context
+
     def train(self, V=50000, batch_size=128, embedding_size=128, skip_window=4, num_skips=2, num_sampled=64):
         """
         Step 4: Build and train a skip-gram model.
