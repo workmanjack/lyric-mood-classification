@@ -29,12 +29,13 @@ from nltk.corpus import stopwords
 VOCAB_SIZE = 50000
 UNKNOWN_TAG = 'UNK'
 LOGS_TF_DIR = 'logs/tf'
-VOCABULARY_FILE = os.path.join(LOGS_TF_DIR, 'vocabulary.txt')
-LYRICS2VEC_DATA_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_data.pickle')
-LYRICS2VEC_COUNT_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_count.pickle')
-LYRICS2VEC_DICT_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_dict.pickle')
-LYRICS2VEC_REVDICT_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_revdict.pickle')
-LYRICS2VEC_EMBEDDINGS_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_embeddings.pickle')
+LYRICS2VEC_DIR = os.path.join(LOGS_TF_DIR, 'lyrics2vec')
+VOCABULARY_FILE = os.path.join(LYRICS2VEC_DIR, 'vocabulary.txt')
+LYRICS2VEC_DATA_PICKLE = os.path.join(LYRICS2VEC_DIR, 'lyrics2vec_data.pickle')
+LYRICS2VEC_COUNT_PICKLE = os.path.join(LYRICS2VEC_DIR, 'lyrics2vec_count.pickle')
+LYRICS2VEC_DICT_PICKLE = os.path.join(LYRICS2VEC_DIR, 'lyrics2vec_dict.pickle')
+LYRICS2VEC_REVDICT_PICKLE = os.path.join(LYRICS2VEC_DIR, 'lyrics2vec_revdict.pickle')
+LYRICS2VEC_EMBEDDINGS_PICKLE = os.path.join(LYRICS2VEC_DIR, 'lyrics2vec_embeddings.pickle')
     
 
 def prep_nltk():
@@ -358,7 +359,7 @@ class lyrics2vec(object):
 
         with tf.Session(graph=graph) as session:
             # Open a writer to write summaries.
-            writer = tf.summary.FileWriter(LOGS_TF_DIR, session.graph)
+            writer = tf.summary.FileWriter(LYRICS2VEC_DIR, session.graph)
 
             # We must initialize all variables before we use them.
             init.run()
@@ -412,18 +413,18 @@ class lyrics2vec(object):
             self.final_embeddings = normalized_embeddings.eval()
 
             # Write corresponding labels for the embeddings.
-            with open(LOGS_TF_DIR + '/metadata.tsv', 'w') as f:
+            with open(LYRICS2VEC_DIR + '/metadata.tsv', 'w') as f:
                 for i in range(V):
                     f.write(self.reversed_dictionary[i] + '\n')
 
             # Save the model for checkpoints.
-            saver.save(session, os.path.join(LOGS_TF_DIR, 'model.ckpt'))
+            saver.save(session, os.path.join(LYRICS2VEC_DIR, 'model.ckpt'))
 
             # Create a configuration for visualizing embeddings with the labels in TensorBoard.
             config = projector.ProjectorConfig()
             embedding_conf = config.embeddings.add()
             embedding_conf.tensor_name = embeddings.name
-            embedding_conf.metadata_path = os.path.join(LOGS_TF_DIR, 'metadata.tsv')
+            embedding_conf.metadata_path = os.path.join(LYRICS2VEC_DIR, 'metadata.tsv')
             projector.visualize_embeddings(writer, config)
 
         writer.close()
@@ -502,7 +503,7 @@ def main():
         LyricsVectorizer.train(V=V)
         LyricsVectorizer.save_embeddings()
 
-    LyricsVectorizer.plot_with_labels(os.path.join(LOGS_TF_DIR, 'embeddings.png'))
+    LyricsVectorizer.plot_with_labels(os.path.join(LYRICS2VEC_DIR, 'embeddings.png'))
     
     return
     
