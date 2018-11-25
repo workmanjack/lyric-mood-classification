@@ -27,6 +27,7 @@ from nltk.corpus import stopwords
 
 
 VOCAB_SIZE = 50000
+UNKNOWN_TAG = 'UNK'
 LOGS_TF_DIR = 'logs/tf'
 VOCABULARY_FILE = os.path.join(LOGS_TF_DIR, 'vocabulary.txt')
 LYRICS2VEC_DATA_PICKLE = os.path.join(LOGS_TF_DIR, 'lyrics2vec_data.pickle')
@@ -99,7 +100,18 @@ class lyrics2vec(object):
         self.data_index = 0
         return
     
-    # generate batch data
+    @classmethod
+    def InitFromLyrics(lyrics_root=LYRICS_TXT_DIR, lyrics_preprocessing_func=lyrics_preprocessing, words_file=VOCABULARY_FILE):
+        LyricsVectorizer = lyrics2vec()
+        # only extract words if we absolutely need to as it takes ~5 minutes
+        # first look for pickled datasets
+        datasets_loaded = LyricsVectorizer.load_datasets()
+        if not datasets_loaded:
+            words = LyricsVectorizer.extract_words(lyrics_root, lyrics_preprocessing_func, words_file=words_file)
+            LyricsVectorizer.build_dataset(VOCAB_SIZE, words)
+            LyricsVectorizer.save_datasets()
+        return LyricsVectorizer
+
     def _generate_batch(self, data, batch_size, num_skips, skip_window):
         assert batch_size % num_skips == 0
         assert num_skips <= 2 * skip_window
@@ -167,8 +179,22 @@ class lyrics2vec(object):
         return words
     
     def build_dataset(self, n_words, words):
-        """Process raw inputs into a dataset."""
-        self.count = [['UNK', -1]]
+        """
+        Process raw inputs into a dataset.
+        
+        Args:
+          n_words: int, number of words to retain IDs for
+          words: list of str, raw inputs
+        
+        Initializes the following class data members:
+        * count: dict, maps each unique token to its int num of occurences in the dataset
+        * dictionary: dict, maps each token to its int id
+        * reversed_dictionary: dict, maps each int id to its token
+        * data: list, int ids in order for all tokens in dataset
+        
+        Returns: None
+        """
+        self.count = [[UNKNOWN_TAG, -1]]
         self.count.extend(collections.Counter(words).most_common(n_words - 1))
         self.dictionary = dict()
         for word, _ in self.count:
@@ -179,7 +205,7 @@ class lyrics2vec(object):
             if word in self.dictionary:
                 index = self.dictionary[word]
             else:
-                index = 0  # dictionary['UNK']
+                index = 0  # dictionary[UNKNOWN_TAG]
                 unk_count += 1
             self.data.append(index)
         self.count[0][1] = unk_count
@@ -187,6 +213,21 @@ class lyrics2vec(object):
         #return data, count, dictionary, reversed_dictionary
         return
     
+    def transform(self, lyrics):
+        """
+        Maps each word in provided array to its integer ID from the constructed vocabulary
+        
+        Args:
+          lyrics: list of strs
+        
+        Returns: list of ints
+        """
+        lyric_ids = list()
+        for word in lyrics:
+            lyric_ids.append(self.dictionary.get(word, 0))
+            #print('{0} -> {1}'.format(word, lyric_ids[-1]))
+        return lyric_ids
+
     def load_datasets(self):
         loaded = False
         if os.path.exists(LYRICS2VEC_DATA_PICKLE):
@@ -427,6 +468,8 @@ class lyrics2vec(object):
     def __repr__(self):
         return '<lyrics2vec()>'.format()
 
+    
+    
 
 def main():
     #prep_nltk()
