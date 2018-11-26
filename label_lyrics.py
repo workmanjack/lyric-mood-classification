@@ -39,6 +39,27 @@ MOOD_CATEGORIES = {
     'excitement': ['excitement', 'exciting', 'exhilarating', 'thrill', 'ardor']
 }
 
+MOOD_CATEGORIES_EXPANDED = {
+    'calm': ['calm', 'comfort', 'quiet', 'serene', 'mellow', 'chill out'],
+    'sad': ['sadness', 'unhappy', 'melancholic', 'melancholy'],
+    'happy': ['happy', 'happiness', 'happy songs', 'happy music'],
+    'romantic': ['romantic', 'romantic music'],
+    'upbeat': ['upbeat', 'gleeful', 'high spirits', 'zest', 'enthusiastic'],
+    'depressed': ['depressed', 'blue', 'dark', 'depressive', 'dreary'],
+    'anger': ['anger', 'angry', 'choleric', 'fury', 'outraged', 'rage'],
+    'grief': ['grief', 'heartbreak', 'mournful', 'sorrow', 'sorry'],
+    'dreamy': ['dreamy'],
+    'cheerful': ['cheerful', 'cheer up', 'festive', 'jolly', 'jovial', 'merry'],
+    'brooding': ['brooding', 'contemplative', 'meditative', 'reflective'],
+    'aggression': ['aggression', 'aggressive', '%aggress%'],
+    'confident': ['confident', 'encouraging', 'encouragement', 'optimism'],
+    'angst': ['angst', 'anxiety', 'anxious', 'jumpy', 'nervous', 'angsty'],
+    'earnest': ['earnest', 'heartfelt'],
+    'desire': ['desire', 'hope', 'hopeful', 'mood: hopeful'],
+    'pessimism': ['pessimism', 'cynical', 'pessimistic', 'weltschmerz'],
+    'excitement': ['excitement', 'exciting', 'exhilarating', 'thrill', 'ardor']
+}
+
 
 def sanitize(tag):
     """
@@ -116,6 +137,7 @@ def label_lyrics(csv_input, csv_output, artist_first_letter=None):
 
     try:
 
+        # for each song, query tags and attempt to match moods
         for index, row in df.iterrows():
 
             found_tags = 0

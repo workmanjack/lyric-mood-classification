@@ -18,7 +18,7 @@ DATA_URLS = [
     # ('musixmatch', 'train', 'http://labrosa.ee.columbia.edu/millionsong/sites/default/files/AdditionalFiles/mxm_dataset_train.txt.zip', 'data/musixmatch_train.txt.zip'),
     # ('musixmatch', 'test', 'http://labrosa.ee.columbia.edu/millionsong/sites/default/files/AdditionalFiles/mxm_dataset_test.txt.zip', 'data/musixmatch_test.txt.zip'),
     #('musixmatch', 'matches', 'http://labrosa.ee.columbia.edu/millionsong/sites/default/files/AdditionalFiles/mxm_779k_matches.txt.zip', 'data/musixmatch_matches.txt.zip'),
-    ('MAGD', 'dataset', 'http://www.ifs.tuwien.ac.at/mir/msd/partitions/msd-MAGD-genreAssignment.cls', 'data/genres.csv')
+    #('MAGD', 'dataset', 'http://www.ifs.tuwien.ac.at/mir/msd/partitions/msd-MAGD-genreAssignment.cls', 'data/genres.csv')
 ]
 
 
