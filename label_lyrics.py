@@ -5,6 +5,7 @@ Useful tutorial from MSD: https://labrosa.ee.columbia.edu/millionsong/sites/defa
 import os
 import sys
 import time
+import json
 import sqlite3
 import argparse
 import pandas as pd
@@ -39,27 +40,25 @@ MOOD_CATEGORIES = {
     'excitement': ['excitement', 'exciting', 'exhilarating', 'thrill', 'ardor']
 }
 
-MOOD_CATEGORIES_EXPANDED = {
-    'calm': ['calm', 'comfort', 'quiet', 'serene', 'mellow', 'chill out'],
-    'sad': ['sadness', 'unhappy', 'melancholic', 'melancholy'],
-    'happy': ['happy', 'happiness', 'happy songs', 'happy music'],
-    'romantic': ['romantic', 'romantic music'],
-    'upbeat': ['upbeat', 'gleeful', 'high spirits', 'zest', 'enthusiastic'],
-    'depressed': ['depressed', 'blue', 'dark', 'depressive', 'dreary'],
-    'anger': ['anger', 'angry', 'choleric', 'fury', 'outraged', 'rage'],
-    'grief': ['grief', 'heartbreak', 'mournful', 'sorrow', 'sorry'],
-    'dreamy': ['dreamy'],
-    'cheerful': ['cheerful', 'cheer up', 'festive', 'jolly', 'jovial', 'merry'],
-    'brooding': ['brooding', 'contemplative', 'meditative', 'reflective'],
-    'aggression': ['aggression', 'aggressive', '%aggress%'],
-    'confident': ['confident', 'encouraging', 'encouragement', 'optimism'],
-    'angst': ['angst', 'anxiety', 'anxious', 'jumpy', 'nervous', 'angsty'],
-    'earnest': ['earnest', 'heartfelt'],
-    'desire': ['desire', 'hope', 'hopeful', 'mood: hopeful'],
-    'pessimism': ['pessimism', 'cynical', 'pessimistic', 'weltschmerz'],
-    'excitement': ['excitement', 'exciting', 'exhilarating', 'thrill', 'ardor']
-}
 
+MOOD_CATEGORIES_EXPANDED_JSON = 'mood_categories_expanded.json'
+def read_mood_categories_expanded():
+    data = None
+    with open(MOOD_CATEGORIES_EXPANDED_JSON, 'r') as f:
+        data = json.load(f)
+    return data
+
+MOOD_CATEGORIES_EXPANDED = read_mood_categories_expanded()
+"""
+{
+    'mood': [
+        [<same list as MOOD_CATEGORIES>],
+        [<"like" queries (think of them as substring moods)>],
+        [<"filter" strings (if you match a "like", make sure it is not one of these!)>],
+    ],
+    'mood2': ...
+}
+"""
 
 def sanitize(tag):
     """
@@ -89,8 +88,103 @@ def match_tag_to_mood(tag):
     return matched_mood
 
 
-def label_lyrics(csv_input, csv_output, artist_first_letter=None):
+# making these global to enable pandas apply
+count_total = 0
+count_lyrics_with_tags = 0
+count_no_mood_match = 0
+count_labeled = 0
+total_rows = 0
 
+
+def match_song_tags_to_mood_expanded(tags):
+    """
+    With expanded moods, we run the risk of multiple moods being found
+    for the same song. To get around this, we do a "scoreboard" where we
+    keep track of how many matches each mood gets. We return the mood
+    with the most matches.
+    
+    Returns:
+        matched_mood, str
+        mood_scoreboard, dict (mostly for testing purposes)
+    """
+    # first, check if expanded moods are populated
+    if not MOOD_CATEGORIES_EXPANDED and len(MOOD_CATEGORIES_EXPANDED) <= 0:
+        raise("error! MOOD_CATEGORIES_EXPANDED is not initialized")
+    matched_mood = MOOD_UNKNOWN_KEY
+    mood_scoreboard = dict.fromkeys(MOOD_CATEGORIES_EXPANDED.keys(), 0)
+    for mood, submood_lists in MOOD_CATEGORIES_EXPANDED.items():
+        #print('mood={0}'.format(mood))
+        for likemood in submood_lists[1]:
+            #print('\tlikemood={}'.format(likemood))
+            # how many tags contain this like-tag?
+            liketags = tags[tags.str.contains(likemood)]
+            if len(liketags) > 0:
+                # do any of the matched like-tags match the filters? if yes, we don't want them 
+                matched_filter = 0
+                for filtermood in submood_lists[2]:
+                    matched_filter += liketags.str.count(filtermood).sum()
+                matched_likemoods = len(liketags) - matched_filter
+                mood_scoreboard[mood] += matched_likemoods
+    max_score = 0
+    for mood, score in mood_scoreboard.items():
+        if score > max_score:
+            matched_mood = mood
+            max_score = score
+    #print('matched_mood = ', matched_mood)
+    #print('mood_scoreboard = {0}'.format(mood_scoreboard))
+    return matched_mood, mood_scoreboard
+
+
+def get_mood_for_track(msd_id, lyrics_filename, conn, expanded_moods):
+    
+    global count_total, count_lyrics_with_tags, count_no_mood_match, count_labeled
+    
+    found_tags = 0
+    matched_mood = 0
+    match = MOOD_UNKNOWN_KEY
+
+    # query for tags
+    sql = "SELECT tids.tid, tags.tag, tid_tag.val FROM tid_tag, tids, tags WHERE tids.ROWID=tid_tag.tid AND tid_tag.tag=tags.ROWID AND tids.tid='{0}'".format(sanitize(msd_id))
+    data = pd.read_sql_query(sql, conn)
+
+    # check if tags were returned
+    found_tags = len(data)
+    if found_tags == 0:
+        logger.debug('{0}/{1}, {2}: no tags'.format(count_total, total_rows, lyrics_filename))
+
+    else:
+        count_lyrics_with_tags += 1
+
+        # attempt to match tag to a mood
+        if expanded_moods:
+            match, mood_scoreboard = match_song_tags_to_mood_expanded(data['tag'])
+        else:
+            # do it the old way
+            for tag in data['tag']:
+                match = match_tag_to_mood(tag)
+                if match != MOOD_UNKNOWN_KEY:
+                    break
+
+        # process the match, if any
+        if match == MOOD_UNKNOWN_KEY:
+            logger.debug('{0}/{1}, {2}: found tags but could not match mood'.format(
+                count_total, total_rows, lyrics_filename))
+            count_no_mood_match += 1
+
+        else:
+            logger.debug('{0}/{1}, {2}: success! mood={2}'.format(
+                count_total, total_rows, lyrics_filename, match))
+            matched_mood = 1
+            count_labeled += 1
+
+    count_total += 1
+    return [found_tags, matched_mood, match]
+
+    
+def label_lyrics(csv_input, csv_output, artist_first_letter=None, expanded_moods=False):
+
+    logger.info('artist_first_letter={}'.format(artist_first_letter))
+    logger.info('expanded_moods={}'.format(expanded_moods))
     logger.info('Reading in input csv {0}'.format(csv_input))
 
     start = time.time()
@@ -100,6 +194,9 @@ def label_lyrics(csv_input, csv_output, artist_first_letter=None):
     df = add_col_if_dne(df, 'found_tags', -1)
     df = add_col_if_dne(df, 'matched_mood', -1)
 
+    if artist_first_letter:
+        df = df[df.msd_artist.str.lower().str.startswith(artist_first_letter.lower())]
+    
     ## Doing this will drop all filtered songs from final csv but grants speed
     logger.debug('Filtering to only songs that are in english and have lyrics available')
     logger.debug('Songs before filtering: {0}'.format(len(df)))
@@ -128,54 +225,28 @@ def label_lyrics(csv_input, csv_output, artist_first_letter=None):
 
     logger.info('Querying Last.fm and Labeling Lyrics')
 
-    count_total = 0
-    count_lyrics_with_tags = 0
-    count_no_mood_match = 0
-    count_labeled = 0
+    global total_rows
+    total_rows = len(df)
 
     start = time.time()
 
     try:
 
+        # https://apassionatechie.wordpress.com/2017/12/27/create-multiple-pandas-dataframe-columns-from-applying-a-function-with-multiple-returns/
+        df[['found_tags', 'matched_mood', 'mood']] = df.apply(lambda row: pd.Series(
+            get_mood_for_track(
+                row['msd_id'],
+                row['lyrics_filename'],
+                conn,
+                expanded_moods
+            )), axis=1)
+        # --- old way
         # for each song, query tags and attempt to match moods
-        for index, row in df.iterrows():
-
-            found_tags = 0
-            matched_mood = 0
-            match = MOOD_UNKNOWN_KEY
-
-            # query for tags
-            sql = "SELECT tids.tid, tags.tag, tid_tag.val FROM tid_tag, tids, tags WHERE tids.ROWID=tid_tag.tid AND tid_tag.tag=tags.ROWID AND tids.tid='{0}'".format(sanitize(row['msd_id']))
-            data = pd.read_sql_query(sql, conn)
-
-            # check if tags were returned
-            found_tags = len(data)
-            if found_tags == 0:
-                logger.debug('{0}, {1}: no tags'.format(count_total, row['lyrics_filename']))
-
-            else:
-                count_lyrics_with_tags += 1
-
-                # attempt to match tag to a mood
-                for tag in data['tag']:
-                    match = match_tag_to_mood(tag)
-                    if match != MOOD_UNKNOWN_KEY:
-                        break
-
-                # process the match, if any
-                if match == MOOD_UNKNOWN_KEY:
-                    logger.debug('{0}, {1}: found tags but could not match mood'.format(count_total, row['lyrics_filename']))
-                    count_no_mood_match += 1
-
-                else:
-                    logger.debug('{0}, {1}: success! mood={2}'.format(count_total, row['lyrics_filename'], match))
-                    matched_mood = 1
-                    count_labeled += 1
-
-            count_total += 1
-            df.loc[index, 'found_tags'] = found_tags
-            df.loc[index, 'matched_mood'] = matched_mood
-            df.loc[index, 'mood'] = match
+        #for index, row in df.iterrows():
+        #    results = get_mood_for_track
+        #    df.loc[index, 'found_tags'] = [0]
+        #    df.loc[index, 'matched_mood'] = [1]
+        #    df.loc[index, 'mood'] = [2]
 
     except KeyboardInterrupt as kbi:
         logger.info(str(kbi))
@@ -207,9 +278,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # universal args
-    parser.add_argument('-a', '--artist-first-letter', action='store', required=False, default=None, help='Attempt to label lyrics only for artists that start with this letter.')
+    parser.add_argument('-a', '--artist-first-letter', action='store', type=str, required=False, default=None, help='Attempt to label lyrics only for artists that start with this letter.')
     parser.add_argument('-i', '--csv-input', action='store', required=False, default=CSV_INDEX_LYRICS, help='Artist-Song mapping csv with lyric file paths')
     parser.add_argument('-o', '--csv-output', action='store', required=False, default=CSV_LABELED_LYRICS, help='csv to write to (WARNING: will overwite)')
+    parser.add_argument('-e', '--expanded-moods', action='store_true', required=False, default=False, help='use the MOOD_CATEGORIES_EXPANDED dict instead of MOOD_CATEGORIES')
 
     args = parser.parse_args()
 
@@ -234,7 +306,7 @@ def main():
 
     configure_logging(logname='label_lyrics')
     args = parse_args()
-    label_lyrics(args.csv_input, args.csv_output, args.artist_first_letter)
+    label_lyrics(args.csv_input, args.csv_output, args.artist_first_letter, args.expanded_moods)
 
     return
 

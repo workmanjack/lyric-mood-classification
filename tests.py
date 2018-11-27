@@ -7,6 +7,7 @@ import pandas as pd
 
 # project files
 import index_lyrics
+import label_lyrics
 
 
 class TestETL(unittest.TestCase):
@@ -25,15 +26,15 @@ class TestETL(unittest.TestCase):
 
     def test_read_file_contents(self):
         # txt
-        expected_contents = 'hello\nworld\n123'
+        expected_contents = ('hello\nworld\n123', 'default')
         with open(self.test_txt, 'w') as f:
-            f.write(expected_contents)
+            f.write(expected_contents[0])
         actual_contents = index_lyrics.read_file_contents(self.test_txt)
         self.assertEqual(expected_contents, actual_contents)
         # json
-        expected_contents = {'hello': 'world', '1': {'2': '3', '4': '5'}}
+        expected_contents = ({'hello': 'world', '1': {'2': '3', '4': '5'}}, 'default')
         with open(self.test_txt, 'w') as f:
-            json.dump(expected_contents, f)
+            json.dump(expected_contents[0], f)
         actual_contents = index_lyrics.read_file_contents(self.test_txt, read_json=True)
         self.assertEqual(expected_contents, actual_contents)
 
@@ -81,6 +82,47 @@ class TestETL(unittest.TestCase):
             for index, actual_row in enumerate(reader):
                 self.assertEqual(expected_rows[index], actual_row)
 
+                
+class TestLabelLyrics(unittest.TestCase):
 
+    def test_match_song_tags_to_mood_expanded(self):
+        """
+        Uses the moods "aggression", "angst", "brooding" to validate that
+        expanded mood matching works as expected
+        
+        For reference, these moods were pasted in on 11/26/18
+            "aggression": [
+                ["aggression", "aggressive"],
+                ["aggress"],
+                ["not so aggressive"]
+            ],
+            "angst": [
+                ["angst", "anxiety", "anxious", "jumpy", "nervous", "angsty"],
+                ["angst", "anxiety", "anxious", "jumpy", "nervous", "angsty"],
+                ["gangst", "langstrumpf", "farangstar", "gaaangstaa", "klangstark"]
+            ],
+            "brooding": [
+                ["brooding", "contemplative", "meditative", "reflective"],
+                ["brood", "contemplat", "meditat", "reflect"],
+                ["broodcast", "marilyn manson - the reflecting god", "silverchair-reflections of a sound"]
+            ],
+        """
+        tags = list()
+        # should match aggressive 2
+        tags += ['aggressiiiiive', 'not so aggressive', 'not so aggressss']
+        # should match angst 2
+        tags += ['jumpy', 'nervou', 'nervous', 'gangst', 'langstrumpf']
+        # should match brooding 3
+        tags += ['marilyn manson', 'broodccast', 'broodcast', 'contemplative', 'meditation']
+        expected_mood = 'brooding'
+        expected_scoreboard = dict.fromkeys(label_lyrics.MOOD_CATEGORIES_EXPANDED.keys(), 0)
+        expected_scoreboard['aggression'] = 2
+        expected_scoreboard['angst'] = 2
+        expected_scoreboard['brooding'] = 3
+        actual_mood, actual_scoreboard = label_lyrics.match_song_tags_to_mood_expanded(pd.Series(tags))
+        self.assertEqual(expected_mood, actual_mood)
+        self.assertEqual(expected_scoreboard, actual_scoreboard)
+        
+        
 if __name__ == '__main__':
     unittest.main()
