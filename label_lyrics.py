@@ -142,6 +142,7 @@ def get_mood_for_track(msd_id, lyrics_filename, conn, expanded_moods):
     found_tags = 0
     matched_mood = 0
     match = MOOD_UNKNOWN_KEY
+    mood_scoreboard = dict.fromkeys(MOOD_CATEGORIES_EXPANDED.keys(), 0)
 
     # query for tags
     sql = "SELECT tids.tid, tags.tag, tid_tag.val FROM tid_tag, tids, tags WHERE tids.ROWID=tid_tag.tid AND tid_tag.tag=tags.ROWID AND tids.tid='{0}'".format(sanitize(msd_id))
@@ -178,7 +179,8 @@ def get_mood_for_track(msd_id, lyrics_filename, conn, expanded_moods):
             count_labeled += 1
 
     count_total += 1
-    return [found_tags, matched_mood, match]
+    #return [found_tags, matched_mood, match]
+    return [found_tags, matched_mood, match, mood_scoreboard]
 
     
 def label_lyrics(csv_input, csv_output, artist_first_letter=None, expanded_moods=False):
@@ -233,20 +235,26 @@ def label_lyrics(csv_input, csv_output, artist_first_letter=None, expanded_moods
     try:
 
         # https://apassionatechie.wordpress.com/2017/12/27/create-multiple-pandas-dataframe-columns-from-applying-a-function-with-multiple-returns/
-        df[['found_tags', 'matched_mood', 'mood']] = df.apply(lambda row: pd.Series(
-            get_mood_for_track(
+        #df[['found_tags', 'matched_mood', 'mood']] = df.apply(lambda row: pd.Series(
+        #    get_mood_for_track(
+        #        row['msd_id'],
+        #        row['lyrics_filename'],
+        #        conn,
+        #        expanded_moods
+        #    )), axis=1)
+        # --- old way
+        # for each song, query tags and attempt to match moods
+        for index, row in df.iterrows():
+            results = get_mood_for_track(
                 row['msd_id'],
                 row['lyrics_filename'],
                 conn,
-                expanded_moods
-            )), axis=1)
-        # --- old way
-        # for each song, query tags and attempt to match moods
-        #for index, row in df.iterrows():
-        #    results = get_mood_for_track
-        #    df.loc[index, 'found_tags'] = [0]
-        #    df.loc[index, 'matched_mood'] = [1]
-        #    df.loc[index, 'mood'] = [2]
+                expanded_moods)
+            df.loc[index, 'found_tags'] = results[0]
+            df.loc[index, 'matched_mood'] = results[1]
+            df.loc[index, 'mood'] = results[2]
+            for mood, score in results[3].items():
+                df.loc[index, mood] = score
 
     except KeyboardInterrupt as kbi:
         logger.info(str(kbi))
