@@ -21,6 +21,7 @@ import numpy as np
 import subprocess
 import argparse
 import datetime
+import shutil
 import time
 import json
 import csv
@@ -597,13 +598,14 @@ class LyricsCNN(object):
         feed_dict = {
             self.input_x: x_batch,
             self.input_y: y_batch,
-            self.dropout_keep_prob: self.dropout
+            self.dropout_keep_prob: self.dropout if train_op else 1.0
         }
         if train_op:
             _, step, summaries, loss, accuracy = sess.run(
                 [train_op, global_step, summary_op, self.loss, self.accuracy],
                 feed_dict)
         else:
+            logger.info('NOT training')
             step, summaries, loss, accuracy = sess.run(
                 [global_step, summary_op, self.loss, self.accuracy],
                 feed_dict)
@@ -699,7 +701,7 @@ class LyricsCNN(object):
                 # evaluate against dev
                 if current_step % self.evaluate_every == 0:
                     logger.info("\nEvaluation:")
-                    self._cnn_step(sess, x_batch, y_batch, global_step, summary_op=dev_summary_op,
+                    self._cnn_step(sess, x_dev, y_dev, global_step, summary_op=dev_summary_op,
                                    summary_writer=dev_summary_writer, step_writer=csvwriter)
                     logger.info('')
                 # save model checkpoint
@@ -783,7 +785,8 @@ def main():
         pretrained_embeddings=pretrained_embeddings,
         train_embeddings=False)
     
-    if os.path.exists(os.path.join(cnn.output_dir, 'summaries')):
+    model_summary_dir = os.path.join(cnn.output_dir, 'summaries')
+    if os.path.exists(model_summary_dir):
         logger.info('Detected possible duplicate model: {0}'.format(cnn.output_dir))
         del_old_model = ''
         while True:
@@ -795,6 +798,7 @@ def main():
                 return
             elif del_old_model == 'y':
                 logger.info('Great! Moving on.')
+                shutil.rmtree(model_summary_dir)
                 break
             else:
                 print('response not accepted')
@@ -803,7 +807,7 @@ def main():
     if args.launch_tensorboard:
         logger.info('Launching tensorboard...')
         best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
-        tb_cmd = build_tensorboard_cmd([best, ('new', os.path.join(cnn.output_dir, 'summaries'))])
+        tb_cmd = build_tensorboard_cmd([best, ('new', model_summary_dir)])
         logger.info(tb_cmd)
         tb_proc = subprocess.Popen(tb_cmd.split())
 
@@ -828,6 +832,7 @@ def main():
             tb_proc.kill()
             logger.info('Killed tensorboard')
 
+    logger.info('Model output dir: {0}'.format(model_summary_dir))
     logger.info('Done!')
                             
     return
