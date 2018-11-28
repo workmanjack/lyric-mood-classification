@@ -1,5 +1,10 @@
 """
 LyricsCNN class and supporting functions/variables
+
+These incredibly helpful sources were a big help when putting together the CNN:
+* http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/
+* https://agarnitin86.github.io/blog/2016/12/23/text-classification-cnn
+
 """
 # project imports
 from scrape_lyrics import configure_logging, logger, LYRICS_TXT_DIR
@@ -13,6 +18,7 @@ import lyrics2vec
 import tensorflow as tf
 import pandas as pd
 import numpy as np
+import subprocess
 import argparse
 import datetime
 import time
@@ -52,10 +58,37 @@ def with_self_graph(function):
 
 
 def pickle_datasets(df_train, df_dev, df_test):
+    if not os.path.exists(LYRICS_CNN_DIR):
+        os.makedir(LYRICS_CNN_DIR, exist_ok=True)
     lyrics2vec.picklify(df_train, LYRICS_CNN_DF_TRAIN_PICKLE)
     lyrics2vec.picklify(df_dev, LYRICS_CNN_DF_DEV_PICKLE)
     lyrics2vec.picklify(df_test, LYRICS_CNN_DF_TEST_PICKLE)
     return
+
+
+def build_tensorboard_cmd(experiments):
+    """
+    Constructs a tensorboard command out of <runs>
+    Ex: !tensorboard --logdir 
+        w2v0:logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/,
+        w2v0-moodexp:logs/tf/runs/Em-300_FS-3-4-5_NF-64_D-0.5_L2-0.01_B-64_Ep-20_W2V-0-Tr_V-50000/summaries/
+
+    Args:
+        runs: list of tuples, each tuple is a run with (<name>, <path>)
+
+    Returns: str, tensorboard logdir
+    """
+    logdir = ''
+    for experiment in experiments:
+        if len(experiment) != 2:
+            logger.error('improperly formatted experiment: {0}'.format(experiment))
+            continue
+        name = experiment[0]
+        path = experiment[1]
+        logdir += '{0}:{1},'.format(name, path)
+    # remove final comma
+    logdir = logdir[:-1]
+    return 'tensorboard --logdir {0}'.format(logdir)
 
 
 def import_labeled_lyrics_data(csv_path, usecols=None):
@@ -509,10 +542,10 @@ class LyricsCNN(object):
         data = np.array(data)
         data_size = len(data)
         self.num_batches_per_epoch = int((len(data) - 1) / self.batch_size) + 1
-        print('num_batches_per_epoch = {0}'.format(self.num_batches_per_epoch))
+        logger.info('num_batches_per_epoch = {0}'.format(self.num_batches_per_epoch))
         for epoch in range(self.num_epochs):
-            print('***********************************************')
-            print('Epoch {0}/{1}\n'.format(epoch, self.num_epochs))
+            logger.info('***********************************************')
+            logger.info('Epoch {0}/{1}\n'.format(epoch, self.num_epochs))
             # Shuffle the data at each epoch
             if shuffle:
                 shuffle_indices = np.random.permutation(np.arange(data_size))
@@ -520,10 +553,10 @@ class LyricsCNN(object):
             else:
                 shuffled_data = data
             for batch_num in range(self.num_batches_per_epoch):
-                print('-----------------------------------------------')
+                logger.info('-----------------------------------------------')
                 start_index = batch_num * self.batch_size
                 end_index = min((batch_num + 1) * self.batch_size, data_size)
-                print('Epoch {0}/{1}, Batch {2}/{3} (start={4}, end={5})'.format(
+                logger.info('Epoch {0}/{1}, Batch {2}/{3} (start={4}, end={5})'.format(
                     epoch, self.num_epochs, batch_num, self.num_batches_per_epoch, start_index, end_index))
                 yield shuffled_data[start_index:end_index]
 
@@ -561,7 +594,7 @@ class LyricsCNN(object):
                 [global_step, summary_op, self.loss, self.accuracy],
                 feed_dict)
         time_str = datetime.datetime.now().isoformat()
-        print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+        logger.info("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
         if summary_writer:
             summary_writer.add_summary(summaries, step)
         if step_writer:
@@ -583,7 +616,7 @@ class LyricsCNN(object):
             
         Returns: None
         """
-        print("Writing to {}\n".format(self.output_dir))
+        logger.info("Writing to {}\n".format(self.output_dir))
         self.save_params(os.path.join(self.output_dir, 'model_params.json'))
 
         session_conf = tf.ConfigProto()
@@ -633,7 +666,7 @@ class LyricsCNN(object):
             checkpoint_dir = os.path.abspath(os.path.join(self.output_dir, "checkpoints"))
             checkpoint_prefix = os.path.join(checkpoint_dir, "model")
             if not os.path.exists(checkpoint_dir):
-                os.makedirs(checkpoint_dir)
+                os.makedirs(checkpoint_dir, exist_ok=True)
             saver = tf.train.Saver(tf.global_variables(), max_to_keep=self.num_checkpoints)
 
             # Initialize all variables
@@ -651,16 +684,16 @@ class LyricsCNN(object):
                 current_step = tf.train.global_step(sess, global_step)
                 # evaluate against dev
                 if current_step % self.evaluate_every == 0:
-                    print("\nEvaluation:")
+                    logger.info("\nEvaluation:")
                     self._cnn_step(sess, x_batch, y_batch, global_step, summary_op=dev_summary_op,
                                    summary_writer=dev_summary_writer, step_writer=csvwriter)
-                    print()
+                    logger.info('')
                 # save model checkpoint
                 if current_step % self.checkpoint_every == 0:
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                    print("Saved model checkpoint to {}\n".format(path))
+                    logger.info("Saved model checkpoint to {}\n".format(path))
 
-            print("\nFinal Test Evaluation:")
+            logger.info("\nFinal Test Evaluation:")
             self._cnn_step(sess, x_test, y_test, global_step, summary_op=test_summary_op,
                            summary_writer=test_summary_writer, step_writer=csvwriter)
                 
@@ -677,6 +710,8 @@ def parse_args():
                         help='Random seed to be used by numpy to ensure reproducibility')
     parser.add_argument('--skip-pickles', action='store_true', required=False, default=False,
                         help='Do not use pickled datasets even if they\'re available')
+    parser.add_argument('-t', '--launch-tensorboard', action='store_true', required=False, default=False,
+                        help='Launch tensorboard on a subprocess to view this run')
 
     args = parser.parse_args()
     logger.info(args)    
@@ -715,7 +750,7 @@ def main():
         # Model Hyperparameters
         embedding_size=300,
         filter_sizes=[3,4,5],
-        num_filters=128,
+        num_filters=264,
         dropout=0.5,
         l2_reg_lambda=0.01,
         # Training parameters
@@ -726,15 +761,54 @@ def main():
         num_checkpoints=5,
         pretrained_embeddings=None,
         train_embeddings=False)
+    
+    if os.path.exists(cnn.output_dir):
+        logger.info('Detected possible duplicate model: {0}'.format(cnn.output_dir))
+        del_old_model = ''
+        while True:
+            print()
+            del_old_model = input('You are about to overwrite old model data. Is this okay? (Y/N): ')
+            done = del_old_model.lower() != 'y' or del_old_model.lower() != 'n'
+            if del_old_model == 'n':
+                logger.info('Okay, will not overwrite. Exiting...')
+                return
+            elif del_old_model == 'y':
+                logger.info('Great! Moving on.')
+                break
+            else:
+                print('response not accepted')
+    
+    tb_proc = None
+    if args.launch_tensorboard:
+        logger.info('Launching tensorboard...')
+        best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
+        tb_cmd = build_tensorboard_cmd([best, ('new', os.path.join(cnn.output_dir, 'summaries'))])
+        logger.info(tb_cmd)
+        tb_proc = subprocess.Popen(tb_cmd.split())
 
-    cnn.train(
-        x_train,
-        y_train,
-        x_dev,
-        y_dev,
-        x_test,
-        y_test)
+    try:
+        cnn.train(
+            x_train,
+            y_train,
+            x_dev,
+            y_dev,
+            x_test,
+            y_test)
+    except Exception as e:
+        logger.info('we had a problem...')
+        logger.error(str(e))
+    finally:
+        if tb_proc:
+            # kill tensorbroad process when user is ready
+            user_input = ''
+            while user_input.lower() != 'y':
+                user_input = input("Ready to kill Tensorboard? (Y/N)")
+                logger.info('user_input = {0}'.format(user_input))
+            tb_proc.kill()
+            logger.info('Killed tensorboard')
 
+    logger.info('Done!')
+                            
     return
 
 
