@@ -66,6 +66,17 @@ def pickle_datasets(df_train, df_dev, df_test):
     return
 
 
+def get_pretrained_embeddings():
+    # get our pre-trained word2vec embeddings
+    lyrics_vectorizer = lyrics2vec.lyrics2vec()
+    embeddings_loaded = lyrics_vectorizer.load_embeddings()
+    if embeddings_loaded:
+        logger.info('embeddings shape: {0}'.format(lyrics_vectorizer.final_embeddings.shape))
+    else:
+        logger.info('failed to load embeddings!')
+    return lyrics_vectorizer.final_embeddings
+
+
 def build_tensorboard_cmd(experiments):
     """
     Constructs a tensorboard command out of <runs>
@@ -377,7 +388,10 @@ class LyricsCNN(object):
                 'checkpoint_every': self.checkpoint_every,
                 'num_checkpoints': self.num_checkpoints,
                 'train_embeddings': self.train_embeddings,
-                'pretrained_embeddings': self.pretrained_embeddings
+                'pretrained_embeddings': self.pretrained_embeddings is not None,
+                'evaluate_every': self.evaluate_every,
+                'checkpoint_every': self.checkpoint_every,
+                'num_checkpoints': self.num_checkpoints,
             }
             json.dump(model_params, outfile, sort_keys=True)
         return
@@ -425,7 +439,7 @@ class LyricsCNN(object):
                 self.l2_reg_lambda,
                 self.batch_size,
                 self.num_epochs,
-                1 if self.pretrained_embeddings else 0,
+                1 if self.pretrained_embeddings is not None else 0,
                 '-Tr' if self.train_embeddings else '',
                 self.vocab_size)
 
@@ -454,7 +468,7 @@ class LyricsCNN(object):
 
             # optional: supply your own embeddings
             # (note: embeddings must match embedding_size!)
-            if self.pretrained_embeddings:
+            if self.pretrained_embeddings is not None:
                 self.W = tf.get_variable(
                     shape=self.pretrained_embeddings.shape,
                     initializer=tf.constant_initializer(self.pretrained_embeddings),
@@ -712,6 +726,8 @@ def parse_args():
                         help='Do not use pickled datasets even if they\'re available')
     parser.add_argument('-t', '--launch-tensorboard', action='store_true', required=False, default=False,
                         help='Launch tensorboard on a subprocess to view this run')
+    parser.add_argument('-w', '--use-word2vec', action='store_true', required=False, default=False,
+                        help='Use pretrained word2vec embeddings')
 
     args = parser.parse_args()
     logger.info(args)    
@@ -742,6 +758,11 @@ def main():
     
     x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test)
 
+    pretrained_embeddings = None
+    if args.use_word2vec:
+        logger.info('getting pretrained embeddings')
+        pretrained_embeddings = get_pretrained_embeddings()
+    
     cnn = LyricsCNN(
         # Data parameters
         sequence_length=x_train.shape[1],
@@ -759,10 +780,10 @@ def main():
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
-        pretrained_embeddings=None,
+        pretrained_embeddings=pretrained_embeddings,
         train_embeddings=False)
     
-    if os.path.exists(cnn.output_dir):
+    if os.path.exists(os.path.join(cnn.output_dir, 'summaries')):
         logger.info('Detected possible duplicate model: {0}'.format(cnn.output_dir))
         del_old_model = ''
         while True:
