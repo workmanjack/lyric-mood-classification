@@ -2,23 +2,61 @@
 LyricsCNN class and supporting functions/variables
 """
 # project imports
-from lyrics2vec import LOGS_TF_DIR, read_file_contents, lyrics2vec
-from scrape_lyrics import configure_logging, logger
+from scrape_lyrics import configure_logging, logger, LYRICS_TXT_DIR
 from label_lyrics import CSV_LABELED_LYRICS
 from index_lyrics import read_file_contents
+from download_data import DATA_DIR
+import lyrics2vec
 
 
 # python and package imports
 import tensorflow as tf
 import pandas as pd
 import numpy as np
+import argparse
+import datetime
 import time
+import json
+import csv
 import os
 
 
 # globals
 LABELED_LYRICS_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
                             'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']
+
+LYRICS_CNN_DIR = os.path.join(lyrics2vec.LOGS_TF_DIR, 'lyrics_cnn')
+LYRICS_CNN_DF_TRAIN_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_train.pickle')
+LYRICS_CNN_DF_DEV_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_dev.pickle')
+LYRICS_CNN_DF_TEST_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_test.pickle')
+
+# thank you: https://github.com/datasci-w266/2018-fall-main/blob/012607b576bb6b96182f819773f3b50155f31876/assignment/a3/lstm/rnnlm.py
+# Decorator-foo to avoid indentation hell.
+# Decorating a function as:
+# @with_self_graph
+# def foo(self, ...):
+#     # do tensorflow stuff
+#
+# Makes it behave as if it were written:
+# def foo(self, ...):
+#     with self.graph.as_default():
+#         # do tensorflow stuff
+#
+# We hope this will save you some indentation, and make things a bit less
+# error-prone.
+def with_self_graph(function):
+    def wrapper(self, *args, **kwargs):
+        with self.graph.as_default():
+            return function(self, *args, **kwargs)
+    return wrapper
+
+
+def pickle_datasets(df_train, df_dev, df_test):
+    lyrics2vec.picklify(df_train, LYRICS_CNN_DF_TRAIN_PICKLE)
+    lyrics2vec.picklify(df_dev, LYRICS_CNN_DF_DEV_PICKLE)
+    lyrics2vec.picklify(df_test, LYRICS_CNN_DF_TEST_PICKLE)
+    return
+
 
 def import_labeled_lyrics_data(csv_path, usecols=None):
     """
@@ -57,13 +95,13 @@ def filter_labeled_lyrics_data(df, drop=True):
     logger.info('Data shape before filtering: {0}'.format(df.shape))
     
     df = df[df.is_english == 1]
-    logger.info('Shape after is_english filter:', df.shape)
+    logger.info('Shape after is_english filter: {0}'.format(df.shape))
 
     df = df[df.lyrics_available == 1]
-    logger.info('Shape after lyrics_available filter:', df.shape)
+    logger.info('Shape after lyrics_available filter: {0}'.format(df.shape))
     
     df = df[df.matched_mood == 1]
-    logger.info('Shape after matched_mood filter:', df.shape)
+    logger.info('Shape after matched_mood filter: {0}'.format(df.shape))
 
     if drop:
         # remove no longer needed columns to conserve memory
@@ -109,7 +147,7 @@ def extract_lyrics(lyrics_filepath):
     return lyrics
 
                  
-def make_lyrics_txt_path(lyrics_filename, lyrics_dir):
+def make_lyrics_txt_path(lyrics_filename, lyrics_dir=LYRICS_TXT_DIR):
     """
     The labeled_lyrics csv has the lyrics filename of each track
     without its extension or parent. This helper function links
@@ -197,8 +235,9 @@ def build_labeled_lyrics_dataset(labeled_lyrics_csv):
     logger.info('df_test shape: {0}, pct: {1}'.format(df_test.shape, df_test.shape[0] / len(df)))
 
     # normalize the lyrics
-    lyrics_vectorizer = lyrics2vec.InitFromLyrics()
+    lyrics_vectorizer = lyrics2vec.lyrics2vec.InitFromLyrics()
     cutoff = compute_lyrics_cutoff(df)
+    logger.info("Normalizing lyrics... (this will take a minute)")
     start = time.time()
 
     # here we make use of panda's apply function to parallelize the IO operation (again)
@@ -234,7 +273,8 @@ class LyricsCNN(object):
     """
     def __init__(self, batch_size, num_epochs, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes,
                  num_filters, l2_reg_lambda=0.0, dropout=0.5, pretrained_embeddings=None, train_embeddings=False,
-                use_timestamp=False, output_dir=None, evaluate_every=100, checkpoint_every=100, num_checkpoints=5):
+                use_timestamp=False, output_dir=None, evaluate_every=100, checkpoint_every=100, num_checkpoints=5,
+                graph=None):
         """
         Initializes class. Creates experiment_name. Initializes TF variables.
         
@@ -259,6 +299,7 @@ class LyricsCNN(object):
             evaluate_every: int, number of steps between dev loss & accuracy evaluation
             checkpoint_every: int, number of steps between each model checkpoint
             num_checkpoints: int, total number of checkpoints to save
+            graph: tf graph, initialized and ready to go tf graph
                 
         Returns: one LyricsCNN
         """
@@ -281,28 +322,32 @@ class LyricsCNN(object):
         self.experiment_name = self._build_experiment_name(timestamp=use_timestamp)
         self.output_dir = self._build_output_dir(output_dir)
 
+        # Set TensorFlow graph. All TF code will work on this graph.
+        self.graph = graph or tf.Graph()
+        
         self.init_cnn()
         
         return
     
     def save_params(self, output):
         # dump params to json in case they need to be referenced later
-        with open(os.path.join(out_dir, 'model_params.json'), 'w') as outfile:
+        with open(output, 'w') as outfile:
             model_params = {
-                'embedding_dim': embedding_dim,
-                'filter_sizes': filter_sizes,
-                'num_filters': num_filters,
-                'dropout_keep_prob': dropout_keep_prob,
-                'l2_reg_lambda': l2_reg_lambda,
-                'batch_size': batch_size,
-                'num_epochs': num_epochs,
-                'evaluate_every': evaluate_every,
-                'checkpoint_every': checkpoint_every,
-                'num_checkpoints': num_checkpoints,
-                'train_embeddings': train_embeddings,
-                'pretrained_embeddings': cnn.pretrained_embeddings
+                'embedding_dim': self.embedding_size,
+                'filter_sizes': self.filter_sizes,
+                'num_filters': self.num_filters,
+                'dropout_keep_prob': self.dropout,
+                'l2_reg_lambda': self.l2_reg_lambda,
+                'batch_size': self.batch_size,
+                'num_epochs': self.num_epochs,
+                'evaluate_every': self.evaluate_every,
+                'checkpoint_every': self.checkpoint_every,
+                'num_checkpoints': self.num_checkpoints,
+                'train_embeddings': self.train_embeddings,
+                'pretrained_embeddings': self.pretrained_embeddings
             }
             json.dump(model_params, outfile, sort_keys=True)
+        return
 
     def _build_output_dir(self, output_dir=None):
         """
@@ -314,7 +359,7 @@ class LyricsCNN(object):
         Returns: str, absolute output directory path
         """
         if not output_dir:
-            output_dir = os.path.join(LOGS_TF_DIR, "runs")
+            output_dir = os.path.join(lyrics2vec.LOGS_TF_DIR, "runs")
         output_dir = os.path.abspath(os.path.join(output_dir, self.experiment_name))
         os.makedirs(output_dir, exist_ok=True)
         return output_dir
@@ -352,7 +397,8 @@ class LyricsCNN(object):
                 self.vocab_size)
 
         return name
-            
+
+    @with_self_graph
     def init_cnn(self):
         """
         Initializes all TF variables
@@ -481,13 +527,15 @@ class LyricsCNN(object):
                     epoch, self.num_epochs, batch_num, self.num_batches_per_epoch, start_index, end_index))
                 yield shuffled_data[start_index:end_index]
 
-    def _cnn_step(self, x_batch, y_batch, summary_op, train_op=None, summary_writer=None, step_writer=None):
+    def _cnn_step(self, sess, x_batch, y_batch, global_step, summary_op, train_op=None, summary_writer=None, step_writer=None):
         """
         A single step
         
         Args:
+            sess: tf session, currently execution session
             x_batch: ndarray, inputs
             y_batch: ndarray, classes
+            global_step: tf variable, stores the step count
             summary_op: tf summary op
             train_op: tf training operation (optional: if None, will not train model)
             summary_writer: tf.summary.FileWriter, to write tf summaries (optional)
@@ -517,9 +565,10 @@ class LyricsCNN(object):
         if summary_writer:
             summary_writer.add_summary(summaries, step)
         if step_writer:
-            step_writer.writerow(['train' if dev_op else 'dev', time_str, step, loss, accuracy])
+            step_writer.writerow(['train' if train_op else 'dev', time_str, step, loss, accuracy])
         return time_str, step, loss, accuracy
 
+    @with_self_graph
     def train(self, x_train, y_train, x_dev, y_dev, x_test, y_test):
         """
         Defines the TF graph for training the CNN
@@ -535,86 +584,85 @@ class LyricsCNN(object):
         Returns: None
         """
         print("Writing to {}\n".format(self.output_dir))
-        
-        with tf.Graph().as_default():
-            
-            session_conf = tf.ConfigProto()
-            sess = tf.Session(config=session_conf)
-            
-            with sess.as_default():
+        self.save_params(os.path.join(self.output_dir, 'model_params.json'))
 
-                # Define Training procedure
-                global_step = tf.Variable(0, name="global_step", trainable=False)
-                optimizer = tf.train.AdamOptimizer(1e-3)
-                grads_and_vars = optimizer.compute_gradients(self.loss)
-                train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+        session_conf = tf.ConfigProto()
+        sess = tf.Session(config=session_conf)
 
-                # Keep track of gradient values and sparsity (optional)
-                grad_summaries = []
-                for g, v in grads_and_vars:
-                    if g is not None:
-                        grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
-                        sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
-                        grad_summaries.append(grad_hist_summary)
-                        grad_summaries.append(sparsity_summary)
-                grad_summaries_merged = tf.summary.merge(grad_summaries)
+        with sess.as_default():
 
-                # Summaries for loss and accuracy
-                loss_summary = tf.summary.scalar("loss", self.loss)
-                acc_summary = tf.summary.scalar("accuracy", self.accuracy)
+            # Define Training procedure
+            global_step = tf.Variable(0, name="global_step", trainable=False)
+            optimizer = tf.train.AdamOptimizer(1e-3)
+            grads_and_vars = optimizer.compute_gradients(self.loss)
+            train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
-                # Train Summaries
-                summary_dir = os.path.join(self.output_dir, "summaries")
-                train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged])
-                train_summary_writer = tf.summary.FileWriter(os.path.join(summary_dir, "train"), sess.graph)
+            # Keep track of gradient values and sparsity (optional)
+            grad_summaries = []
+            for g, v in grads_and_vars:
+                if g is not None:
+                    grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
+                    sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
+                    grad_summaries.append(grad_hist_summary)
+                    grad_summaries.append(sparsity_summary)
+            grad_summaries_merged = tf.summary.merge(grad_summaries)
 
-                # Dev summaries
-                dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
-                dev_summary_writer = tf.summary.FileWriter(os.path.join(summary_dir, "dev"), sess.graph)
+            # Summaries for loss and accuracy
+            loss_summary = tf.summary.scalar("loss", self.loss)
+            acc_summary = tf.summary.scalar("accuracy", self.accuracy)
 
-                # Test summaries
-                test_summary_op = tf.summary.merge([loss_summary, acc_summary])
-                test_summary_writer = tf.summary.FileWriter(os.path.join(summary_dir, "test"), sess.graph)
+            # Train Summaries
+            summary_dir = os.path.join(self.output_dir, "summaries")
+            train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged])
+            train_summary_writer = tf.summary.FileWriter(os.path.join(summary_dir, "train"), sess.graph)
 
-                # Step summaries
-                csvfile = open(os.path.join(self.output_dir, 'step_data.csv'), 'w')
-                csvwriter = csv.writer(csvfile)
-                csvwriter.writerow(['dataset', 'time', 'step', 'loss', 'acc'])
+            # Dev summaries
+            dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
+            dev_summary_writer = tf.summary.FileWriter(os.path.join(summary_dir, "dev"), sess.graph)
 
-                # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
-                checkpoint_dir = os.path.abspath(os.path.join(self.output_dir, "checkpoints"))
-                checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-                if not os.path.exists(checkpoint_dir):
-                    os.makedirs(checkpoint_dir)
-                saver = tf.train.Saver(tf.global_variables(), max_to_keep=num_checkpoints)
+            # Test summaries
+            test_summary_op = tf.summary.merge([loss_summary, acc_summary])
+            test_summary_writer = tf.summary.FileWriter(os.path.join(summary_dir, "test"), sess.graph)
 
-                # Initialize all variables
-                sess.run(tf.global_variables_initializer())
+            # Step summaries
+            csvfile = open(os.path.join(self.output_dir, 'step_data.csv'), 'w')
+            csvwriter = csv.writer(csvfile)
+            csvwriter.writerow(['dataset', 'time', 'step', 'loss', 'acc'])
 
-                # Generate batches
-                batches = self._batch_iter(list(zip(x_train, y_train)), self.batch_size, self.num_epochs)
-                # Training loop
-                for batch in batches:
-                    x_batch, y_batch = zip(*batch)
-                    # train for batch
-                    self._cnn_step(x_batch, y_batch, summary_op=test_summary_op, 
-                                   summary_writer=train_summary_writer, step_writer=csvwriter,
-                                   train_op=train_op)
-                    current_step = tf.train.global_step(sess, global_step)
-                    # evaluate against dev
-                    if current_step % evaluate_every == 0:
-                        print("\nEvaluation:")
-                        self._cnn_step(x_dev, y_dev, summary_op=dev_summary_op,
-                                       summary_writer=dev_summary_writer, step_writer=csvwriter)
-                        print()
-                    # save model checkpoint
-                    if current_step % checkpoint_every == 0:
-                        path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                        print("Saved model checkpoint to {}\n".format(path))
+            # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
+            checkpoint_dir = os.path.abspath(os.path.join(self.output_dir, "checkpoints"))
+            checkpoint_prefix = os.path.join(checkpoint_dir, "model")
+            if not os.path.exists(checkpoint_dir):
+                os.makedirs(checkpoint_dir)
+            saver = tf.train.Saver(tf.global_variables(), max_to_keep=self.num_checkpoints)
 
-                print("\nFinal Test Evaluation:")
-                self._cnn_step(x_test, y_test, summary_op=test_summary_op,
-                               summary_writer=test_summary_writer, step_writer=csvwriter)
+            # Initialize all variables
+            sess.run(tf.global_variables_initializer())
+
+            # Generate batches
+            batches = self._batch_iter(list(zip(x_train, y_train)))
+            # Training loop
+            for batch in batches:
+                x_batch, y_batch = zip(*batch)
+                # train for batch
+                self._cnn_step(sess, x_batch, y_batch, global_step, summary_op=test_summary_op, 
+                               summary_writer=train_summary_writer, step_writer=csvwriter,
+                               train_op=train_op)
+                current_step = tf.train.global_step(sess, global_step)
+                # evaluate against dev
+                if current_step % self.evaluate_every == 0:
+                    print("\nEvaluation:")
+                    self._cnn_step(sess, x_batch, y_batch, global_step, summary_op=dev_summary_op,
+                                   summary_writer=dev_summary_writer, step_writer=csvwriter)
+                    print()
+                # save model checkpoint
+                if current_step % self.checkpoint_every == 0:
+                    path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+                    print("Saved model checkpoint to {}\n".format(path))
+
+            print("\nFinal Test Evaluation:")
+            self._cnn_step(sess, x_test, y_test, global_step, summary_op=test_summary_op,
+                           summary_writer=test_summary_writer, step_writer=csvwriter)
                 
         return
 
@@ -627,6 +675,8 @@ def parse_args():
                         help='Path to labeled_lyrics csv to be used to build dataset')
     parser.add_argument('-s', '--seed', action='store', type=int, required=False, default=12,
                         help='Random seed to be used by numpy to ensure reproducibility')
+    parser.add_argument('--skip-pickles', action='store_true', required=False, default=False,
+                        help='Do not use pickled datasets even if they\'re available')
 
     args = parser.parse_args()
     logger.info(args)    
@@ -639,7 +689,7 @@ def parse_args():
 
     return args
     
-    
+
 def main():
     
     configure_logging('lyrics_cnn')
@@ -647,7 +697,14 @@ def main():
     args = parse_args()
 
     np.random.seed(args.seed)
-    df_train, df_dev, df_test = build_labeled_lyrics_dataset(args.labeled_lyrics_csv)
+    if not args.skip_pickles and os.path.exists(LYRICS_CNN_DF_TRAIN_PICKLE):
+        df_train = lyrics2vec.unpicklify(LYRICS_CNN_DF_TRAIN_PICKLE)
+        df_dev = lyrics2vec.unpicklify(LYRICS_CNN_DF_DEV_PICKLE)
+        df_test = lyrics2vec.unpicklify(LYRICS_CNN_DF_TEST_PICKLE)
+    else:
+        df_train, df_dev, df_test = build_labeled_lyrics_dataset(args.labeled_lyrics_csv)
+        pickle_datasets(df_train, df_dev, df_test)
+    
     x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test)
 
     cnn = LyricsCNN(
@@ -679,3 +736,7 @@ def main():
         y_test)
 
     return
+
+
+if __name__ == '__main__':
+    main()
