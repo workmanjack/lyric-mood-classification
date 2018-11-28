@@ -14,6 +14,7 @@ from index_lyrics import CSV_INDEX_LYRICS, add_col_if_dne
 
 
 CSV_LABELED_LYRICS = 'data/labeled_lyrics.csv'
+CSV_LABELED_LYRICS_EXPANDED = 'data/labeled_lyrics_expanded.csv'
 LASTFM_TAGS_DB = 'data/lastfm_tags.db'
 MOOD_UNKNOWN_KEY = 'unknown'
 

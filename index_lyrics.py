@@ -105,10 +105,11 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
 
             else:
 
-                lyrics_available = 1
                 contents, encoding = read_file_contents(txt_lyricfile)
 
                 if contents:
+                    
+                    lyrics_available = 1
                     
                     # drop the non-english
                     # possible speed improvement available via pandas:
@@ -118,8 +119,8 @@ def index_lyrics(csv_input, csv_output, artist_first_letter=None):
                     except LangDetectException as e:
                         logger.info(str(e))
                         logger.debug('{0} {1} {2} caused a language error.'.format(count_total, txt_lyricfile, encoding))
-                        lyrics_available = 0
                         count_language_error += 1
+                        continue
 
                     is_english = 1 if lang == 'en' else 0
                     if not is_english:
