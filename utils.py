@@ -1,7 +1,9 @@
 import datetime
 import logging
 import pickle
+import time
 import json
+import os
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,18 @@ def configure_logging(logname, verbosity=1):
     logger.addHandler(ch)
 
     return
+
+
+def elapsed_time(start):
+    return (time.time() - start) / 60
+
+
+def elapsed_time_str(start):
+    return '{0:.02f} minutes'.format(elapsed_time(start))
+
+
+def full_elapsed_time_str(start):
+    return 'Elapsed Time: {0}'.format(elapsed_time_str(start))
 
 
 def picklify(data, dest):

@@ -1,5 +1,5 @@
 # project imports
-from utils import read_file_contents, configure_logging, logger
+from utils import read_file_contents, configure_logging, logger, picklify, unpicklify
 from scrape_lyrics import LYRICS_TXT_DIR
 
 
@@ -61,17 +61,20 @@ class lyrics2vec(object):
         self.reversed_dictionary = dict()
     
     @classmethod
-    def init_from_lyrics(vocab_size, words, word_tokenizer_id):
+    def init_from_lyrics(cls, vocab_size, words, word_tokenizer_id, unpickle=True):
         """
         Initializer that builds dataset as well as inits
         
         Returns:
             lyrics2vec: initialized with dataset lyrics2vec
         """
-        lyrics_vectorizer = lyrics2vec(vocab_size, words, word_tokenizer_id)
-        if regen_pretrained_embeddings:
+        lyrics_vectorizer = lyrics2vec(vocab_size, word_tokenizer_id)
+        loaded = False
+        if unpickle:
+            loaded = lyrics_vectorizer.load_dataset()
+        if not loaded:
             lyrics_vectorizer.build_dataset(words)
-            lyrics_vectorizer.save_datasets(words)
+            lyrics_vectorizer.save_dataset()
         return lyrics_vectorizer
   
     def build_dataset(self, words):
@@ -89,8 +92,9 @@ class lyrics2vec(object):
         
         Returns: None
         """
+        logger.info('building lyrics2vec dataset')
         self.count = [[UNKNOWN_TAG, -1]]
-        self.count.extend(collections.Counter(words).most_common(n_words - 1))
+        self.count.extend(collections.Counter(words).most_common(self.vocab_size - 1))
         self.dictionary = dict()
         for word, _ in self.count:
             self.dictionary[word] = len(self.dictionary)
@@ -123,13 +127,16 @@ class lyrics2vec(object):
         return lyric_ids
 
     def _build_lyrics2vec_dir(self):
-        return 'lyrics2vec_V-{0}_Wt-{1}'.format(self.vocab_size, self.word_tokenizer_id)
+        d = 'lyrics2vec_V-{0}_Wt-{1}'.format(self.vocab_size, self.word_tokenizer_id)
+        d = os.path.join(LYRICS2VEC_DIR, d)
+        os.makedirs(d, exist_ok=True)
+        return d
 
     def _pickle_path(self, pickle_name):
         return os.path.join(self._build_lyrics2vec_dir(),
                             'lyrics2vec_{0}.pickle'.format(pickle_name))
     
-    def load_datasets(self):
+    def load_dataset(self):
         loaded = False
         data_pickle = self._pickle_path(self.DATA_PICKLE_NAME)
         if os.path.exists(data_pickle):
@@ -144,10 +151,10 @@ class lyrics2vec(object):
             loaded = True
             logger.info('lyrics2vec datasets successfully loaded via pickle')
         else:
-            logger.error('cannot load lyrics2vec datasets! no pickle data files found')
+            logger.warning('cannot load lyrics2vec datasets! no pickle data files found')
         return loaded
     
-    def save_datasets(self):
+    def save_dataset(self):
         picklify(self.data, self._pickle_path(self.DATA_PICKLE_NAME))
         picklify(self.count, self._pickle_path(self.COUNT_PICKLE_NAME))
         picklify(self.dictionary, self._pickle_path(
@@ -212,7 +219,6 @@ class lyrics2vec(object):
         logger.info('vocab_size={0}, batch_size={1}, embedding_size={2}, skip_window={3},'
                     'num_skips={4}, num_sampled={4}'.format(self.vocab_size, batch_size,
                         embedding_size, skip_window, num_skips, num_sampled))
-        data_index = 0  # reset data_index for batch generation
         
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
@@ -306,7 +312,6 @@ class lyrics2vec(object):
             for step in range(num_steps):
                 batch_inputs, batch_labels = self._generate_batch(self.data, batch_size, num_skips, skip_window)
                 feed_dict = {train_inputs: batch_inputs, train_labels: batch_labels}
-
                 # Define metadata variable.
                 run_metadata = tf.RunMetadata()
 
