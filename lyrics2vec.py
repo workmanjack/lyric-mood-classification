@@ -145,7 +145,7 @@ class lyrics2vec(object):
             self.count = unpicklify(
                 self._pickle_path(self.COUNT_PICKLE_NAME))
             self.dictionary = unpicklify(
-                self._pickle_path(self.DATA_PICKLE_NAME))
+                self._pickle_path(self.DICTIONARY_PICKLE_NAME))
             self.reversed_dictionary = unpicklify(
                 self._pickle_path(self.REVERSED_DICTIONARY_PICKLE_NAME))
             loaded = True
@@ -204,7 +204,7 @@ class lyrics2vec(object):
         self.data_index = (self.data_index + len(data) - span) % len(data)
         return batch, context
 
-    def train(self, batch_size=128, embedding_size=128, skip_window=4, num_skips=2, num_sampled=64):
+    def train(self, batch_size=128, embedding_size=300, skip_window=4, num_skips=2, num_sampled=64):
         """
         Step 4: Build and train a skip-gram model.
         """
@@ -355,8 +355,8 @@ class lyrics2vec(object):
             self.final_embeddings = normalized_embeddings.eval()
 
             # Write corresponding labels for the embeddings.
-            with open(os.path.join(outdir, '/metadata.tsv'), 'w') as f:
-                for i in range(V):
+            with open(os.path.join(outdir, 'metadata.tsv'), 'w') as f:
+                for i in range(self.vocab_size):
                     f.write(self.reversed_dictionary[i] + '\n')
 
             # Save the model for checkpoints.
@@ -383,6 +383,7 @@ class lyrics2vec(object):
         logger.info('Beginning lyrics2vec label plotting')
         start = time.time()
         
+        outfile = os.path.join(self._build_lyrics2vec_dir(), 'embeddings.png')
         tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000, method='exact')
         plot_only = 500
         low_dim_embs = tsne.fit_transform(self.final_embeddings[:plot_only, :])
@@ -401,10 +402,10 @@ class lyrics2vec(object):
                 ha='right',
                 va='bottom')
 
-            plt.savefig(os.path.join(self._build_lyrics2vec_dir(), 'embeddings.png'))
+            plt.savefig(outfile)
         
         logger.info('Elapsed Time: {0}'.format((time.time() - start) / 60))
-        logger.info('saved plot at {0}'.format(filename))
+        logger.info('saved plot at {0}'.format(outfile))
 
     def __repr__(self):
         return '<lyrics2vec()>'.format()

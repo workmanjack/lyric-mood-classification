@@ -1,7 +1,8 @@
 # project imports
 from utils import read_file_contents, full_elapsed_time_str, configure_logging, logger, picklify, unpicklify
-from scrape_lyrics import LYRICS_TXT_DIR
 from lyrics2vec import lyrics2vec, LOGS_TF_DIR
+from scrape_lyrics import LYRICS_TXT_DIR
+from lyrics_cnn import LyricsCNN
 
 # python and package imports
 import pandas as pd
@@ -236,7 +237,6 @@ def extract_words_from_lyrics(lyrics_series):
             singlelist = singlelist.remove('<PAD>')
         if singlelist:
             words += singlelist
-    import pdb; pdb.set_trace()
     #words = ' '.join(lyrics_series)
     logger.debug('num words = {0}'.format(len(words)))
     logger.debug('words[:10] = {0}'.format(words[:10]))
@@ -306,7 +306,7 @@ def build_lyrics_dataset(lyrics_csv, word_tokenizer):
 
 def vectorize_lyrics_dataset(df, lyrics_vectorizer):
     """
-    Adds a 'normalized_lyrics' column to the provided dataframe.
+    Adds a 'vectorized_lyrics' column to the provided dataframe.
     
     Column is the integer and processed vector representation of
     the lyrics column.
@@ -315,13 +315,13 @@ def vectorize_lyrics_dataset(df, lyrics_vectorizer):
         df: pd.DataFrame, dataframe with 'lyrics' column to process
         
     Returns:
-        pd.DataFrame with 'normalized lyrics' column
+        pd.DataFrame with 'vectorized_lyrics' column
     """
     logger.info("Normalizing lyrics... (this will take a minute)")
     start = time.time()
 
     # here we make use of panda's apply function to parallelize the IO operation (again)
-    df['vectorized_lyrics'] = df.preprocessed_lyrics.apply(lambda x: lyrics_vectorizer.transform(x))
+    df['vectorized_lyrics'] = df.preprocessed_lyrics_padded.apply(lambda x: lyrics_vectorizer.transform(x))
     logger.info('lyrics vectorized ({0} minutes)'.format((time.time() - start) / 60))
     logger.debug(df.vectorized_lyrics.head())
 
@@ -345,11 +345,11 @@ def split_data(df):
 
 def split_x_y(df_train, df_dev, df_test):
     
-    x_train = np.array(list(df_train.normalized_lyrics))
+    x_train = np.array(list(df_train.vectorized_lyrics))
     y_train = pd.get_dummies(df_train.mood).values
-    x_dev = np.array(list(df_dev.normalized_lyrics))
+    x_dev = np.array(list(df_dev.vectorized_lyrics))
     y_dev = pd.get_dummies(df_dev.mood).values
-    x_test = np.array(list(df_test.normalized_lyrics))
+    x_test = np.array(list(df_test.vectorized_lyrics))
     y_test = pd.get_dummies(df_test.mood).values
   
     return x_train, y_train, x_dev, y_dev, x_test, y_test 
@@ -399,6 +399,7 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
     if use_pretrained_embeddings and not regen_pretrained_embeddings:
         logger.info('reusing pretrained embeddings')
         lyrics_vectorizer.load_embeddings()
+        logger.info('embeddings shape: {0}'.format(lyrics_vectorizer.final_embeddings.shape))
 
     logger.info('Step 2 {0}'.format(full_elapsed_time_str(step_time)))
     logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
@@ -408,17 +409,17 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
     
     if revectorize_lyrics:
         df = vectorize_lyrics_dataset(df, lyrics_vectorizer)
-        df.to_csv(VECTORIZED_LYRICS_PICKLE, encoding='utf-8')
+        picklify(df, VECTORIZED_LYRICS_PICKLE)
     else:
-        df = read_csv(VECTORIZED_LYRICS_PICKLE, encoding='utf-8')
+        df = unpicklify(VECTORIZED_LYRICS_PICKLE)
 
     # dump some examples
     logger.info('\tExample song lyrics: {0}'.format(df.lyrics.iloc[0]))
-    logger.info('\tExample preprocessed lyrics: {0}'.format(df.preprocessed_lyrics.iloc[0]))
+    logger.info('\tExample preprocessed lyrics: {0}'.format(df.preprocessed_lyrics_padded.iloc[0]))
     logger.info('\tExample vectorized lyrics: {0}'.format(df.vectorized_lyrics.iloc[0]))
 
     logger.info('Step 3 {0}'.format(full_elapsed_time_str(step_time)))
-    logger.info('Mood Classification {0}'.format(full_elapsed_time_str(start)))
+    logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
     # -------------------------------------------------------
     logger.info('Step 4: Split Data')
     step_time = time.time()
@@ -449,7 +450,7 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
-        pretrained_embeddings=pretrained_embeddings,
+        pretrained_embeddings=lyrics_vectorizer.final_embeddings,
         train_embeddings=cnn_train_embeddings)
     
     logger.info('Checking for prexisting data...')
@@ -541,17 +542,19 @@ def main():
     # * higher num_filters means more memory_usage; lower batch_size to make up for it
     # * num_filters = 512 is too much
     # * adding <PAD> to embeddings causes the loss to go to infinity within the first batch...
+    # * lyrics2vec can be converted to doc2vec by removing self.count and sending in lists of tokens where each song is a list
+    # * lyrics2vec training takes about 6 minutes
 
     mood_classification(
         # Controls
         regen_dataset=False,
-        regen_lyrics2vec_dataset=True,
+        regen_lyrics2vec_dataset=False,
         use_pretrained_embeddings=True,
         regen_pretrained_embeddings=True,
-        revectorize_lyrics=False,
+        revectorize_lyrics=True,
         cnn_train_embeddings=False,
         launch_tensorboard=True,
-        best_model=best
+        best_model=best,
         # Model Hyperparameters
         embedding_size=300,
         filter_sizes=[3,4,5],
