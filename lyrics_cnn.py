@@ -29,9 +29,6 @@ import os
 
 
 # globals
-LABELED_LYRICS_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
-                            'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']
-
 LYRICS_CNN_DIR = os.path.join(lyrics2vec.LOGS_TF_DIR, 'lyrics_cnn')
 LYRICS_CNN_DF_TRAIN_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_train.pickle')
 LYRICS_CNN_DF_DEV_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_dev.pickle')
@@ -101,211 +98,6 @@ def build_tensorboard_cmd(experiments):
     # remove final comma
     logdir = logdir[:-1]
     return 'tensorboard --logdir {0}'.format(logdir)
-
-
-def import_labeled_lyrics_data(csv_path, usecols=None):
-    """
-    Imports data from the provided path
-    
-    Assumes csv is a csv produced by label_lyrics.py
-    
-    Args:
-        csv_path: str, path to csv to import data from
-        usecols: list, cols to import (optional)
-    """
-    logger.info('Importing data from {0}'.format(csv_path))
-    if not usecols:
-        # we leave out the musixmatch id, artist, and title cols as well as the mood scoreboard cols
-        # as they are unneeded for the cnn
-        usecols = LABELED_LYRICS_KEEP_COLS
-    df = pd.read_csv(csv_path, usecols=usecols)
-    
-    logger.info('imported data shape: {0}'.format(df.shape))
-    
-    return df
-
-    
-def filter_labeled_lyrics_data(df, drop=True):
-    """
-    Removes rows of data not applicable to this project's analysis
-
-    Assumes df is from a csv produced by label_lyrics.py
-    
-    Args:
-        df: pd.DataFrame
-        drop: bool, flag to drop filtered cols or not to save memory
-        
-    Returns: filtered dataframe
-    """
-    logger.info('Data shape before filtering: {0}'.format(df.shape))
-    
-    df = df[df.is_english == 1]
-    logger.info('Shape after is_english filter: {0}'.format(df.shape))
-
-    df = df[df.lyrics_available == 1]
-    logger.info('Shape after lyrics_available filter: {0}'.format(df.shape))
-    
-    df = df[df.matched_mood == 1]
-    logger.info('Shape after matched_mood filter: {0}'.format(df.shape))
-
-    if drop:
-        # remove no longer needed columns to conserve memory
-        df = df.drop(['is_english', 'lyrics_available', 'matched_mood'], axis=1)
-        logger.info('Cols after drop: {0}'.format(df.columns))
-        
-    return df
-
-
-def categorize_labeled_lyrics_data(df):
-    """
-    Creates a categorical data column for moods
-
-    Thank you: https://stackoverflow.com/questions/38088652/pandas-convert-categories-to-numbers
-
-    Assumes df is from a csv produced by label_lyrics.py
-    
-    Args:
-        df: pd.DataFrame
-
-    Returns: pd.DataFrame with categorical 'mood_cats' column
-    """
-    df.mood = pd.Categorical(df.mood)
-    df['mood_cats'] = df.mood.cat.codes
-    logger.info('Unique mood categories:\n{0}'.format(df['mood_cats'].unique()))
-    logger.info('Shape after mood categorization: {0}'.format(df.shape))
-    return df
-    
-    
-def extract_lyrics(lyrics_filepath):
-    """
-    Extract lyrics from provided file path
-    
-    Args:
-        lyrics_filepath: str, path to lyrics file
-        
-    Returns: str, lyrics or '' if path does not exist
-    """
-    # read in the lyrics of each song
-    lyrics = ''
-    if os.path.exists(lyrics_filepath):
-        lyrics = read_file_contents(lyrics_filepath)[0]
-    return lyrics
-
-                 
-def make_lyrics_txt_path(lyrics_filename, lyrics_dir=LYRICS_TXT_DIR):
-    """
-    The labeled_lyrics csv has the lyrics filename of each track
-    without its extension or parent. This helper function links
-    those missing pieces of info together.
-    
-    Args:
-        lyrics_filename: str, name of lyrics file
-        lyrics_dir: str, root dir of lyrics files
-        
-    Returns: str
-    """
-    return os.path.join(lyrics_dir, lyrics_filename) + '.txt'
-
-
-def split_data(data):
-    """
-    Splits the supplied ndarray into three sections of
-    """
-    # thank you: https://stackoverflow.com/questions/38250710/how-to-split-data-into-3-sets-train-validation-and-test/38251213#38251213
-    # optional random dataframe shuffle
-    #df = df.reindex(np.random.permutation(df.index))
-    return np.split(data.sample(frac=1), [int(.6*len(data)), int(.8*len(data))])
-
-
-def compute_lyrics_cutoff(df):
-    pctiles = df.wordcount.describe()
-    logger.debug(pctiles)
-    cutoff = int(pctiles[pctiles.index.str.startswith('75%')][0])
-    logger.info('\nAll songs will be limited to {0} words'.format(cutoff))
-    return cutoff
-
-
-def normalize_lyrics(lyrics, max_length, lyrics_vectorizer):
-    """
-    Tokenize, process, shorten/lengthen, and vectorize lyrics
-    """
-    lyrics = lyrics2vec.lyrics_preprocessing(lyrics)
-    if len(lyrics) > max_length:
-        lyrics = lyrics[:max_length]
-    else:
-        lyrics += ['<PAD>'] * (int(max_length) - int(len(lyrics)))
-
-    lyric_vector = lyrics_vectorizer.transform(lyrics)
-    return lyric_vector
-
-
-def split_x_y(df_train, df_dev, df_test):
-    
-    x_train = np.array(list(df_train.normalized_lyrics))
-    y_train = pd.get_dummies(df_train.mood).values
-    x_dev = np.array(list(df_dev.normalized_lyrics))
-    y_dev = pd.get_dummies(df_dev.mood).values
-    x_test = np.array(list(df_test.normalized_lyrics))
-    y_test = pd.get_dummies(df_test.mood).values
-  
-    return x_train, y_train, x_dev, y_dev, x_test, y_test 
-
-    
-def build_labeled_lyrics_dataset(labeled_lyrics_csv):
-    """
-    Imports csv, filters unneeded data, and imports lyrics into a dataframe
-    
-    Assumes csv is from csv produced by label_lyrics.py
-
-    Args:
-        labeled_lyrics_csv: str, path to labeled_lyrics csv file
-        
-    Returns: pd.DataFrame
-    """
-    # import, filter, and categorize the data
-    df = import_labeled_lyrics_data(labeled_lyrics_csv)
-    df = filter_labeled_lyrics_data(df)
-    df = categorize_labeled_lyrics_data(df)
-
-    # import the lyrics
-    # here we make use of panda's apply function to parallelize the IO operation
-    df['lyrics'] = df.lyrics_filename.apply(lambda x: extract_lyrics(make_lyrics_txt_path(x)))
-    logger.info('Data shape after lyrics addition: {0}'.format(df.shape))
-    logger.info('Df head:\n{0}'.format(df.lyrics.head()))
-
-    # split the data
-    df_train, df_dev, df_test = split_data(df)
-    logger.info('df_train shape: {0}, pct: {1}'.format(df_train.shape, df_train.shape[0] / len(df)))
-    logger.info('df_dev shape: {0}, pct: {1}'.format(df_dev.shape, df_dev.shape[0] / len(df)))
-    logger.info('df_test shape: {0}, pct: {1}'.format(df_test.shape, df_test.shape[0] / len(df)))
-
-    # normalize the lyrics
-    lyrics_vectorizer = lyrics2vec.lyrics2vec.InitFromLyrics()
-    cutoff = compute_lyrics_cutoff(df)
-    logger.info("Normalizing lyrics... (this will take a minute)")
-    start = time.time()
-
-    # here we make use of panda's apply function to parallelize the IO operation (again)
-    df_train['normalized_lyrics'] = df_train.lyrics.apply(lambda x: normalize_lyrics(x, cutoff, lyrics_vectorizer))
-    logger.info('train data normalized ({0} minutes)'.format((time.time() - start) / 60))
-    logger.debug(df_train.normalized_lyrics.head())
-
-    df_dev['normalized_lyrics'] = df_dev.lyrics.apply(lambda x: normalize_lyrics(x, cutoff, lyrics_vectorizer))
-    logger.info('dev data normalized ({0} minutes)'.format((time.time() - start) / 60))
-    logger.debug(df_dev.normalized_lyrics.head())
-
-    df_test['normalized_lyrics'] = df_test.lyrics.apply(lambda x: normalize_lyrics(x, cutoff, lyrics_vectorizer))
-    logger.info('test data normalized ({0} minutes)'.format((time.time() - start) / 60))
-    logger.debug(df_test.normalized_lyrics.head())
-
-    logger.info('\nExample of padding:')
-    example = df_train.normalized_lyrics[df_train.normalized_lyrics.str.len() == cutoff].iloc[0]
-    logger.info('\tFirst 5 tokens: {0}'.format(example[:5]))
-    logger.info('\tLast 5 tokens: {0}.'.format(example[-5:]))
-
-    logger.info('\nElapsed Time: {0} minutes'.format((time.time() - start) / 60))
-
-    return df_train, df_dev, df_test
 
 
 class LyricsCNN(object):
@@ -605,7 +397,7 @@ class LyricsCNN(object):
                 [train_op, global_step, summary_op, self.loss, self.accuracy],
                 feed_dict)
         else:
-            logger.info('NOT training')
+            logger.info('Validation Step')
             step, summaries, loss, accuracy = sess.run(
                 [global_step, summary_op, self.loss, self.accuracy],
                 feed_dict)
@@ -755,7 +547,8 @@ def main():
         df_dev = lyrics2vec.unpicklify(LYRICS_CNN_DF_DEV_PICKLE)
         df_test = lyrics2vec.unpicklify(LYRICS_CNN_DF_TEST_PICKLE)
     else:
-        df_train, df_dev, df_test = build_labeled_lyrics_dataset(args.labeled_lyrics_csv)
+        df = lyrics2vec.build_labeled_lyrics_dataset(args.labeled_lyrics_csv)
+        df_train, df_dev, df_test = lyrics2vec.split_data(df)
         pickle_datasets(df_train, df_dev, df_test)
     
     x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test)
@@ -773,12 +566,12 @@ def main():
         # Model Hyperparameters
         embedding_size=300,
         filter_sizes=[3,4,5],
-        num_filters=264,
-        dropout=0.5,
+        num_filters=300,
+        dropout=0.75,
         l2_reg_lambda=0.01,
         # Training parameters
-        batch_size=128,
-        num_epochs=10,
+        batch_size=64,
+        num_epochs=12,
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
@@ -806,11 +599,21 @@ def main():
     tb_proc = None
     if args.launch_tensorboard:
         logger.info('Launching tensorboard...')
-        best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
+        #best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
+        #best = ('w2v1_1', 'logs/tf/runs/Em-300_FS-3-4-5_NF-264_D-0.5_L2-0.01_B-128_Ep-10_W2V-1_V-50000/summaries/')
+        #best = ('w2v1_2', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.5_L2-0.01_B-64_Ep-20_W2V-1_V-50000/summaries/')   # 52.74
+        best = ('w2v1_3', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-64_Ep-12_W2V-1_V-50000/summaries/')   # 54.30, 1.832
+        # nope = ('w2v1_4', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.1_B-64_Ep-12_W2V-1_V-50000/summaries')   # 47.36
+        # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
         tb_cmd = build_tensorboard_cmd([best, ('new', model_summary_dir)])
         logger.info(tb_cmd)
         tb_proc = subprocess.Popen(tb_cmd.split())
 
+    # Notes
+    # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
+    # * higher num_filters means more memory_usage; lower batch_size to make up for it
+    #     * num_filters = 512 is too much
+        
     try:
         cnn.train(
             x_train,

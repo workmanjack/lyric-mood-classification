@@ -16,7 +16,7 @@ import csv
 import os
 
 
-class TestETL(unittest.TestCase):
+class TestIndexLyrics(unittest.TestCase):
 
     test_txt = 'test.txt'
     input_csv = 'test_input.csv'
@@ -128,6 +128,32 @@ class TestLabelLyrics(unittest.TestCase):
         actual_mood, actual_scoreboard = label_lyrics.match_song_tags_to_mood_expanded(pd.Series(tags))
         self.assertEqual(expected_mood, actual_mood)
         self.assertEqual(expected_scoreboard, actual_scoreboard)
+
+
+class TestLyrics2Vec(unittest.TestCase):
+    
+    #def lyrics_preprocessing(lyrics):
+    def test_lyrics_preprocessing(self):
+        lyrics = ("[Verse 1] "
+                  "Yesterday All my troubles seemed so far away "
+                  "Now it looks as though they're here to stay "
+                  "Oh, I believe in yesterday "
+                  "[Verse 2] "
+                  "Suddenly "
+                  "I'm not half the man I used to be "
+                  "There's a shadow hanging over me "
+                  "Oh, yesterday came suddenly")
+        expected = ['verse', '1',
+                    'yesterday', 'all', 'my', 'troubles', 'seemed', 'so', 'far', 'away',
+                    'now', 'it', 'looks', 'as', 'though', 'they', "'re", 'here', 'to', 'stay',
+                    'oh', 'i', 'believe', 'in', 'yesterday',
+                    'verse', '2',
+                    'suddenly',
+                    'i', "'m", 'not', 'half', 'the', 'man', 'i', 'used', 'to', 'be',
+                    'there', "'s", 'a', 'shadow', 'hanging', 'over', 'me',
+                    'oh', 'yesterday', 'came', 'suddenly']
+        actual = lyrics2vec.lyrics_preprocessing(lyrics)
+        self.assertEqual(expected, actual)
 
 
 class TestLyricsCnnDataImport(unittest.TestCase):
