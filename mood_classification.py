@@ -12,7 +12,7 @@ import os
 
 # NLTK materials - make sure that you have stopwords and also punkt for some reason
 import nltk
-from nltk import word_tokenize
+from nltk import WordPunctTokenizer, word_tokenize
 from nltk.corpus import stopwords
 
 
@@ -29,7 +29,7 @@ def prep_nltk():
     return
 
 
-def lyrics_preprocessing(lyrics):
+def lyrics_preprocessing(lyrics, tokenizer=word_tokenize):
     """
     Apply this function to any lyric file contents before reading for embeddings
     
@@ -56,12 +56,16 @@ def lyrics_preprocessing(lyrics):
                      'shouldn', "shouldn't", 'wasn', "wasn't", 'weren', "weren't", 'won',
                      "won't", 'wouldn', "wouldn't"]
     
+    Some suggested tokenizers (from: https://www.nltk.org/api/nltk.tokenize.html):
+      * word_tokenize
+      * WordPunctTokenizer().tokenize
+    
     Args:
         lyrics: str, some amount of lyrics
     """
     # https://stackoverflow.com/questions/17390326/getting-rid-of-stop-words-and-document-tokenization-using-nltk
     stop = stopwords.words('english') + list(string.punctuation)
-    tokens = [i for i in word_tokenize(lyrics.lower()) if i not in stop]
+    tokens = [i for i in tokenizer(lyrics.lower()) if i not in stop]
     return tokens
 
 
