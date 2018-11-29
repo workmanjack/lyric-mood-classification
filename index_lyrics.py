@@ -5,42 +5,11 @@ import pandas as pd
 import time
 import json
 import os
-from scrape_lyrics import make_lyric_file_name, CSV_MUSIXMATCH_MAPPING, configure_logging, logger
+from utils import read_file_contents, configure_logging, logger
+from scrape_lyrics import make_lyric_file_name, CSV_MUSIXMATCH_MAPPING
 
 
 CSV_INDEX_LYRICS = 'data/indexed_lyrics.csv'
-
-
-def read_file_contents(path, read_json=False):
-    contents = None
-    encoding = None
-    try:
-        with open(path, 'r') as f:
-            encoding = 'default'
-            if read_json:
-                contents = json.load(f)
-            else:
-                contents = f.read()
-    except:
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                encoding = 'utf-8'
-                if read_json:
-                    contents = json.load(f)
-                else:
-                    contents = f.read()
-        except:
-            try:
-                with open(path, 'r', encoding='utf-16') as f:
-                    encoding = 'utf-16'
-                    if read_json:
-                        contents = json.load(f)
-                    else:
-                        contents = f.read()
-            except:
-                pass
-    finally:
-        return contents, encoding
 
 
 def add_col_if_dne(df, col, value):

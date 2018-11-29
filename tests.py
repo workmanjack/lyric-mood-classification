@@ -1,8 +1,10 @@
 # project files
+import mood_classification
 import index_lyrics
 import label_lyrics
 import lyrics2vec
 import lyrics_cnn
+import utils
 
 
 # python packages
@@ -35,13 +37,13 @@ class TestIndexLyrics(unittest.TestCase):
         expected_contents = ('hello\nworld\n123', 'default')
         with open(self.test_txt, 'w') as f:
             f.write(expected_contents[0])
-        actual_contents = index_lyrics.read_file_contents(self.test_txt)
+        actual_contents = utils.read_file_contents(self.test_txt)
         self.assertEqual(expected_contents, actual_contents)
         # json
         expected_contents = ({'hello': 'world', '1': {'2': '3', '4': '5'}}, 'default')
         with open(self.test_txt, 'w') as f:
             json.dump(expected_contents[0], f)
-        actual_contents = index_lyrics.read_file_contents(self.test_txt, read_json=True)
+        actual_contents = utils.read_file_contents(self.test_txt, read_json=True)
         self.assertEqual(expected_contents, actual_contents)
 
     def test_add_col_if_dne(self):
@@ -130,33 +132,10 @@ class TestLabelLyrics(unittest.TestCase):
         self.assertEqual(expected_scoreboard, actual_scoreboard)
 
 
-class TestLyrics2Vec(unittest.TestCase):
-    
-    #def lyrics_preprocessing(lyrics):
-    def test_lyrics_preprocessing(self):
-        lyrics = ("[Verse 1] "
-                  "Yesterday All my troubles seemed so far away "
-                  "Now it looks as though they're here to stay "
-                  "Oh, I believe in yesterday "
-                  "[Verse 2] "
-                  "Suddenly "
-                  "I'm not half the man I used to be "
-                  "There's a shadow hanging over me "
-                  "Oh, yesterday came suddenly")
-        expected = ['verse', '1',
-                    'yesterday', 'all', 'my', 'troubles', 'seemed', 'so', 'far', 'away',
-                    'now', 'it', 'looks', 'as', 'though', 'they', "'re", 'here', 'to', 'stay',
-                    'oh', 'i', 'believe', 'in', 'yesterday',
-                    'verse', '2',
-                    'suddenly',
-                    'i', "'m", 'not', 'half', 'the', 'man', 'i', 'used', 'to', 'be',
-                    'there', "'s", 'a', 'shadow', 'hanging', 'over', 'me',
-                    'oh', 'yesterday', 'came', 'suddenly']
-        actual = lyrics2vec.lyrics_preprocessing(lyrics)
-        self.assertEqual(expected, actual)
+#class TestLyrics2Vec(unittest.TestCase):   
 
 
-class TestLyricsCnnDataImport(unittest.TestCase):
+class TestMoodClassificationDataImport(unittest.TestCase):
 
     test_txt = 'test.txt'
     input_csv = 'test_input.csv'
@@ -168,9 +147,42 @@ class TestLyricsCnnDataImport(unittest.TestCase):
         if os.path.exists(self.output_csv):
             os.remove(self.output_csv)
 
+    def test_lyrics_preprocessing(self):
+        lyrics = ("[Verse 1] "
+                  "Yesterday All my troubles seemed so far away "
+                  "Now it looks as though they're here to stay "
+                  "Oh, I believe in yesterday "
+                  "[Verse 2] "
+                  "Suddenly "
+                  "I'm not half the man I used to be "
+                  "There's a shadow hanging over me "
+                  "Oh, yesterday came suddenly")
+        expected_without_stopwords = [
+            'verse', '1',
+            'yesterday', 'troubles', 'seemed', 'far', 'away',
+            'looks', 'though', "'re", 'stay',
+            'oh', 'i', 'believe', 'in', 'yesterday',
+            'verse', '2',
+            'suddenly',
+            "'m", 'half', 'man', 'used', 
+            "'s", 'shadow', 'hanging', 
+            'oh', 'yesterday', 'came', 'suddenly']
+        expected_with_stopwords = [
+            'verse', '1',
+            'yesterday', 'all', 'my', 'troubles', 'seemed', 'so', 'far', 'away',
+            'now', 'it', 'looks', 'as', 'though', 'they', "'re", 'here', 'to', 'stay',
+            'oh', 'i', 'believe', 'in', 'yesterday',
+            'verse', '2',
+            'suddenly',
+            'i', "'m", 'not', 'half', 'the', 'man', 'i', 'used', 'to', 'be',
+            'there', "'s", 'a', 'shadow', 'hanging', 'over', 'me',
+            'oh', 'yesterday', 'came', 'suddenly']
+        actual = mood_classification.lyrics_preprocessing(lyrics)
+        self.assertEqual(expected, actual)
+
     def test_import_labeled_lyrics_data(self):
 
-        orig_cols = lyrics_cnn.LABELED_LYRICS_KEEP_COLS
+        orig_cols = mood_classification.LABELED_LYRICS_KEEP_COLS
         extra_cols = ['a', 'b', 'c']
         cols = orig_cols + extra_cols
         with open(self.input_csv, 'w') as f:
@@ -179,12 +191,12 @@ class TestLyricsCnnDataImport(unittest.TestCase):
             writer.writerow(['test'] * len(cols))
         
         expected = pd.read_csv(self.input_csv, usecols=orig_cols)
-        actual = lyrics_cnn.import_labeled_lyrics_data(self.input_csv)
+        actual = mood_classification.import_labeled_lyrics_data(self.input_csv)
 
         self.assertTrue(expected.equals(actual))
     
     def test_filter_labeled_lyrics_data(self):
-        cols = lyrics_cnn.LABELED_LYRICS_KEEP_COLS
+        cols = mood_classification.LABELED_LYRICS_KEEP_COLS
         rows = [1, 1, 1, 1]
         rows = list(map(lambda x: [0] * len(cols), rows))
         rows[3] = [1] * len(cols)  # the one that will be left behind
@@ -200,15 +212,15 @@ class TestLyricsCnnDataImport(unittest.TestCase):
         df = df.drop([0, 1, 2])
         # test 1: with drop
         expected_df = df.drop(['is_english', 'lyrics_available', 'matched_mood'], axis=1)
-        df_with_drop = lyrics_cnn.filter_labeled_lyrics_data(df)
+        df_with_drop = mood_classification.filter_labeled_lyrics_data(df)
         self.assertTrue(expected_df.equals(df_with_drop))
         # test 2: without drop
         expected_df = df
-        df_without_drop = lyrics_cnn.filter_labeled_lyrics_data(df, drop=False)
+        df_without_drop = mood_classification.filter_labeled_lyrics_data(df, drop=False)
         self.assertTrue(expected_df.equals(df_without_drop))
 
     def test_categorize_labeled_lyrics_data(self):
-        cols = lyrics_cnn.LABELED_LYRICS_KEEP_COLS
+        cols = mood_classification.LABELED_LYRICS_KEEP_COLS
         rows = [1, 2, 3, 4, 5, 6, 7]
         rows = list(map(lambda x: [1] * len(cols), rows))
         rows[3] = [1] * len(cols)  # the one that will be left behind
@@ -230,7 +242,7 @@ class TestLyricsCnnDataImport(unittest.TestCase):
         expected['mood_cats'] = pd.Series([0, 1, 2, 2, 0, 1, 2])
         expected.mood = expected.mood.astype('category')
         expected.mood_cats = expected.mood_cats.astype(np.int8)
-        actual = lyrics_cnn.categorize_labeled_lyrics_data(df)
+        actual = mood_classification.categorize_labeled_lyrics_data(df)
         self.assertTrue(expected.equals(actual))
     
     def test_extract_lyrics(self):
@@ -238,16 +250,16 @@ class TestLyricsCnnDataImport(unittest.TestCase):
         expected = 'testing123'
         with open(self.test_txt, 'w') as f:
             f.write(expected)
-        actual = lyrics_cnn.extract_lyrics(self.test_txt)
+        actual = mood_classification.extract_lyrics(self.test_txt)
         self.assertEqual(expected, actual)
         # test 2: file does not exist
         expected = ''
-        actual = lyrics_cnn.extract_lyrics('not exist this file does')
+        actual = mood_classification.extract_lyrics('not exist this file does')
         self.assertEqual(expected, actual)
 
     def test_make_lyrics_txt_path(self):
         expected = 'bbb/' + 'aaa' + '.txt'
-        actual = lyrics_cnn.make_lyrics_txt_path('aaa', 'bbb')
+        actual = mood_classification.make_lyrics_txt_path('aaa', 'bbb')
         self.assertEqual(expected, actual)
 
     def test_split_data(self):
@@ -258,7 +270,7 @@ class TestLyricsCnnDataImport(unittest.TestCase):
         exp1 = df.reindex([5,8,7,0,4,9])
         exp2 = df.reindex([3,2])
         exp3 = df.reindex([1,6])
-        act1, act2, act3 = lyrics_cnn.split_data(df)
+        act1, act2, act3 = mood_classification.split_data(df)
         # output of func with random seed 12
         #   a
         #5  5

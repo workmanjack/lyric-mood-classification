@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import argparse
 import time
-from scrape_lyrics import configure_logging, logger
+from utils import configure_logging, logger
 from label_lyrics import CSV_LABELED_LYRICS
 
 CSV_LABELED_GENRE = 'data/labeled_genre.csv'

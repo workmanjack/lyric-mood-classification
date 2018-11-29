@@ -9,7 +9,7 @@ import json
 import sqlite3
 import argparse
 import pandas as pd
-from scrape_lyrics import configure_logging, logger
+from utils import configure_logging, logger
 from index_lyrics import CSV_INDEX_LYRICS, add_col_if_dne
 
 

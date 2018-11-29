@@ -7,11 +7,11 @@ These incredibly helpful sources were a big help when putting together the CNN:
 
 """
 # project imports
-from scrape_lyrics import configure_logging, logger, LYRICS_TXT_DIR
+from utils import read_file_contents, configure_logging, logger, picklify, unpicklify
+from lyrics2vec import LOGS_TF_DIR, lyrics2vec
 from label_lyrics import CSV_LABELED_LYRICS
-from index_lyrics import read_file_contents
+from scrape_lyrics import LYRICS_TXT_DIR
 from download_data import DATA_DIR
-import lyrics2vec
 
 
 # python and package imports
@@ -29,7 +29,7 @@ import os
 
 
 # globals
-LYRICS_CNN_DIR = os.path.join(lyrics2vec.LOGS_TF_DIR, 'lyrics_cnn')
+LYRICS_CNN_DIR = os.path.join(LOGS_TF_DIR, 'lyrics_cnn')
 LYRICS_CNN_DF_TRAIN_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_train.pickle')
 LYRICS_CNN_DF_DEV_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_dev.pickle')
 LYRICS_CNN_DF_TEST_PICKLE = os.path.join(LYRICS_CNN_DIR, 'lyrics_cnn_df_test.pickle')
@@ -58,15 +58,15 @@ def with_self_graph(function):
 def pickle_datasets(df_train, df_dev, df_test):
     if not os.path.exists(LYRICS_CNN_DIR):
         os.makedir(LYRICS_CNN_DIR, exist_ok=True)
-    lyrics2vec.picklify(df_train, LYRICS_CNN_DF_TRAIN_PICKLE)
-    lyrics2vec.picklify(df_dev, LYRICS_CNN_DF_DEV_PICKLE)
-    lyrics2vec.picklify(df_test, LYRICS_CNN_DF_TEST_PICKLE)
+    picklify(df_train, LYRICS_CNN_DF_TRAIN_PICKLE)
+    picklify(df_dev, LYRICS_CNN_DF_DEV_PICKLE)
+    picklify(df_test, LYRICS_CNN_DF_TEST_PICKLE)
     return
 
 
 def get_pretrained_embeddings():
     # get our pre-trained word2vec embeddings
-    lyrics_vectorizer = lyrics2vec.lyrics2vec()
+    lyrics_vectorizer = lyrics2vec()
     embeddings_loaded = lyrics_vectorizer.load_embeddings()
     if embeddings_loaded:
         logger.info('embeddings shape: {0}'.format(lyrics_vectorizer.final_embeddings.shape))
@@ -199,7 +199,7 @@ class LyricsCNN(object):
         Returns: str, absolute output directory path
         """
         if not output_dir:
-            output_dir = os.path.join(lyrics2vec.LOGS_TF_DIR, "runs")
+            output_dir = os.path.join(LOGS_TF_DIR, "runs")
         output_dir = os.path.abspath(os.path.join(output_dir, self.experiment_name))
         os.makedirs(output_dir, exist_ok=True)
         return output_dir
@@ -543,9 +543,9 @@ def main():
 
     np.random.seed(args.seed)
     if not args.skip_pickles and os.path.exists(LYRICS_CNN_DF_TRAIN_PICKLE):
-        df_train = lyrics2vec.unpicklify(LYRICS_CNN_DF_TRAIN_PICKLE)
-        df_dev = lyrics2vec.unpicklify(LYRICS_CNN_DF_DEV_PICKLE)
-        df_test = lyrics2vec.unpicklify(LYRICS_CNN_DF_TEST_PICKLE)
+        df_train = unpicklify(LYRICS_CNN_DF_TRAIN_PICKLE)
+        df_dev = unpicklify(LYRICS_CNN_DF_DEV_PICKLE)
+        df_test = unpicklify(LYRICS_CNN_DF_TEST_PICKLE)
     else:
         df = lyrics2vec.build_labeled_lyrics_dataset(args.labeled_lyrics_csv)
         df_train, df_dev, df_test = lyrics2vec.split_data(df)
