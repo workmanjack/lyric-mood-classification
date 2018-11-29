@@ -8,6 +8,7 @@ import utils
 
 
 # python packages
+from nltk import WordPunctTokenizer, word_tokenize
 import tensorflow as tf
 import pandas as pd
 import numpy as np
@@ -157,16 +158,6 @@ class TestMoodClassificationDataImport(unittest.TestCase):
                   "I'm not half the man I used to be "
                   "There's a shadow hanging over me "
                   "Oh, yesterday came suddenly")
-        expected_without_stopwords = [
-            'verse', '1',
-            'yesterday', 'troubles', 'seemed', 'far', 'away',
-            'looks', 'though', "'re", 'stay',
-            'oh', 'i', 'believe', 'in', 'yesterday',
-            'verse', '2',
-            'suddenly',
-            "'m", 'half', 'man', 'used', 
-            "'s", 'shadow', 'hanging', 
-            'oh', 'yesterday', 'came', 'suddenly']
         expected_with_stopwords = [
             'verse', '1',
             'yesterday', 'all', 'my', 'troubles', 'seemed', 'so', 'far', 'away',
@@ -177,12 +168,39 @@ class TestMoodClassificationDataImport(unittest.TestCase):
             'i', "'m", 'not', 'half', 'the', 'man', 'i', 'used', 'to', 'be',
             'there', "'s", 'a', 'shadow', 'hanging', 'over', 'me',
             'oh', 'yesterday', 'came', 'suddenly']
+        expected_word_tokenizer = [
+            'verse', '1',
+            'yesterday', 'troubles', 'seemed', 'far', 'away',
+            'looks', 'though', "'re", 'stay',
+            'oh', 'believe', 'yesterday',
+            'verse', '2',
+            'suddenly', "'m",
+            'half', 'man', 'used', 
+            "'s", 'shadow', 'hanging', 
+            'oh', 'yesterday', 'came', 'suddenly']
+        expected_wordpunct = [
+            'verse', '1',
+            'yesterday', 'troubles', 'seemed', 'far', 'away',
+            'looks', 'though', 'stay',
+            'oh', 'believe', 'yesterday',
+            'verse', '2',
+            'suddenly',
+            'half', 'man', 'used', 
+            'shadow', 'hanging', 
+            'oh', 'yesterday', 'came', 'suddenly']
+        # test default tokenizer
         actual = mood_classification.lyrics_preprocessing(lyrics)
-        self.assertEqual(expected, actual)
+        self.assertEqual(expected_word_tokenizer, actual)
+        # test word_tokenize
+        actual = mood_classification.lyrics_preprocessing(lyrics, tokenizer=word_tokenize)
+        self.assertEqual(expected_word_tokenizer, actual)
+        # test WordPunctTokenizer().tokenize
+        actual = mood_classification.lyrics_preprocessing(lyrics, tokenizer=WordPunctTokenizer().tokenize)
+        self.assertEqual(expected_wordpunct, actual)
 
-    def test_import_labeled_lyrics_data(self):
+    def test_import_lyrics_data(self):
 
-        orig_cols = mood_classification.LABELED_LYRICS_KEEP_COLS
+        orig_cols = mood_classification.LYRICS_CSV_KEEP_COLS
         extra_cols = ['a', 'b', 'c']
         cols = orig_cols + extra_cols
         with open(self.input_csv, 'w') as f:
@@ -191,12 +209,12 @@ class TestMoodClassificationDataImport(unittest.TestCase):
             writer.writerow(['test'] * len(cols))
         
         expected = pd.read_csv(self.input_csv, usecols=orig_cols)
-        actual = mood_classification.import_labeled_lyrics_data(self.input_csv)
+        actual = mood_classification.import_lyrics_data(self.input_csv)
 
         self.assertTrue(expected.equals(actual))
     
-    def test_filter_labeled_lyrics_data(self):
-        cols = mood_classification.LABELED_LYRICS_KEEP_COLS
+    def test_filter_lyrics_data(self):
+        cols = mood_classification.LYRICS_CSV_KEEP_COLS
         rows = [1, 1, 1, 1]
         rows = list(map(lambda x: [0] * len(cols), rows))
         rows[3] = [1] * len(cols)  # the one that will be left behind
@@ -212,15 +230,15 @@ class TestMoodClassificationDataImport(unittest.TestCase):
         df = df.drop([0, 1, 2])
         # test 1: with drop
         expected_df = df.drop(['is_english', 'lyrics_available', 'matched_mood'], axis=1)
-        df_with_drop = mood_classification.filter_labeled_lyrics_data(df)
+        df_with_drop = mood_classification.filter_lyrics_data(df)
         self.assertTrue(expected_df.equals(df_with_drop))
         # test 2: without drop
         expected_df = df
-        df_without_drop = mood_classification.filter_labeled_lyrics_data(df, drop=False)
+        df_without_drop = mood_classification.filter_lyrics_data(df, drop=False)
         self.assertTrue(expected_df.equals(df_without_drop))
 
-    def test_categorize_labeled_lyrics_data(self):
-        cols = mood_classification.LABELED_LYRICS_KEEP_COLS
+    def test_categorize_lyrics_data(self):
+        cols = mood_classification.LYRICS_CSV_KEEP_COLS
         rows = [1, 2, 3, 4, 5, 6, 7]
         rows = list(map(lambda x: [1] * len(cols), rows))
         rows[3] = [1] * len(cols)  # the one that will be left behind
@@ -242,7 +260,7 @@ class TestMoodClassificationDataImport(unittest.TestCase):
         expected['mood_cats'] = pd.Series([0, 1, 2, 2, 0, 1, 2])
         expected.mood = expected.mood.astype('category')
         expected.mood_cats = expected.mood_cats.astype(np.int8)
-        actual = mood_classification.categorize_labeled_lyrics_data(df)
+        actual = mood_classification.categorize_lyrics_data(df)
         self.assertTrue(expected.equals(actual))
     
     def test_extract_lyrics(self):

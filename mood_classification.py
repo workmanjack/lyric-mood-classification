@@ -1,7 +1,7 @@
 # project imports
 from utils import read_file_contents, configure_logging, logger
 from scrape_lyrics import LYRICS_TXT_DIR
-
+from lyrics2vec import lyrics2vec
 
 # python and package imports
 import pandas as pd
@@ -16,7 +16,7 @@ from nltk import WordPunctTokenizer, word_tokenize
 from nltk.corpus import stopwords
 
 
-LABELED_LYRICS_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
+LYRICS_CSV_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
                             'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']
 
 
@@ -69,7 +69,7 @@ def lyrics_preprocessing(lyrics, tokenizer=word_tokenize):
     return tokens
 
 
-def import_labeled_lyrics_data(csv_path, usecols=None):
+def import_lyrics_data(csv_path, usecols=None):
     """
     Imports data from the provided path
     
@@ -83,7 +83,7 @@ def import_labeled_lyrics_data(csv_path, usecols=None):
     if not usecols:
         # we leave out the musixmatch id, artist, and title cols as well as the mood scoreboard cols
         # as they are unneeded for the cnn
-        usecols = LABELED_LYRICS_KEEP_COLS
+        usecols = LYRICS_CSV_KEEP_COLS
     df = pd.read_csv(csv_path, usecols=usecols)
     
     logger.info('imported data shape: {0}'.format(df.shape))
@@ -91,7 +91,7 @@ def import_labeled_lyrics_data(csv_path, usecols=None):
     return df
 
     
-def filter_labeled_lyrics_data(df, drop=True):
+def filter_lyrics_data(df, drop=True):
     """
     Removes rows of data not applicable to this project's analysis
 
@@ -122,7 +122,7 @@ def filter_labeled_lyrics_data(df, drop=True):
     return df
 
 
-def categorize_labeled_lyrics_data(df):
+def categorize_lyrics_data(df):
     """
     Creates a categorical data column for moods
 
@@ -158,7 +158,7 @@ def extract_lyrics(lyrics_filepath):
     return lyrics
 
 
-def extract_words(lyrics_series):
+def extract_words_from_lyrics(lyrics_series):
     """
     Concatenates all elements of lyrics_series and creates a list where
     each element is a single word.
@@ -236,7 +236,7 @@ def split_x_y(df_train, df_dev, df_test):
 
 
 #### TODO!!!! Resolve circular references!!! We need dataset to spit out 
-def build_labeled_lyrics_dataset(labeled_lyrics_csv, split=True):
+def build_lyrics_dataset(lyrics_csv, split=True):
     """
     Imports csv, filters unneeded data, and imports lyrics into a dataframe
     
@@ -283,23 +283,26 @@ def build_labeled_lyrics_dataset(labeled_lyrics_csv, split=True):
     return df
 
 
-def mood_classification():
-    
-    configure_logging(logname='mood_classification')
-    prep_nltk()
-    
+def mood_classification(use_pretrained_embeddings, regen_pretrained_embeddings, cnn_train_embeddings,
+                       word_tokenizer, vocab_size, embedding_size, filter_sizes, num_filters, dropout,
+                       l2_reg_lamda, batch_size, num_epochs, evaluate_every, checkpoint_every,
+                       num_checkpoints):
+    """
+    One big function to control everything post data collection in the project from embeddings to cnn
+    """
     lyrics_vectorizer = lyrics2vec()
-    # only extract words if we absolutely need to as it takes ~5 minutes
-    datasets_loaded = False
-    # first look for pickled datasets
-    #datasets_loaded = lyrics_vectorizer.load_datasets()
-    if not datasets_loaded:
-        df = build_labeled_lyrics_dataset('data/labeled_lyrics_expanded.csv')
-        return
-        words = extract_words(df.lyrics)
-        words = lyrics_vectorizer.extract_words(LYRICS_TXT_DIR, lyrics_preprocessing, words_file=VOCABULARY_FILE)
-        lyrics_vectorizer.build_dataset(VOCAB_SIZE, words)
-        lyrics_vectorizer.save_datasets()
+    if regen_pretrained_embeddings:
+        # only extract words if we absolutely need to as it takes ~5 minutes
+        datasets_loaded = False
+        # first look for pickled datasets
+        #datasets_loaded = lyrics_vectorizer.load_datasets()
+        if not datasets_loaded:
+            df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv')
+            return
+            words = extract_words(df.lyrics)
+            words = lyrics_vectorizer.extract_words(LYRICS_TXT_DIR, lyrics_preprocessing, words_file=VOCABULARY_FILE)
+            lyrics_vectorizer.build_dataset(VOCAB_SIZE, words)
+            lyrics_vectorizer.save_datasets()
 
     embeddings_loaded = False
     # only train embeddings if we absolutely need to as it takes a while!
@@ -321,7 +324,7 @@ def mood_classification():
         df_dev = lyrics2vec.unpicklify(LYRICS_CNN_DF_DEV_PICKLE)
         df_test = lyrics2vec.unpicklify(LYRICS_CNN_DF_TEST_PICKLE)
     else:
-        df = lyrics2vec.build_labeled_lyrics_dataset(args.labeled_lyrics_csv)
+        df = lyrics2vec.build_lyrics_dataset(args.labeled_lyrics_csv)
         df_train, df_dev, df_test = lyrics2vec.split_data(df)
         pickle_datasets(df_train, df_dev, df_test)
     
@@ -336,7 +339,7 @@ def mood_classification():
         # Data parameters
         sequence_length=x_train.shape[1],
         num_classes=y_train.shape[1],
-        vocab_size=50000,
+        vocab_size=vocab_size,
         # Model Hyperparameters
         embedding_size=300,
         filter_sizes=[3,4,5],
@@ -350,7 +353,7 @@ def mood_classification():
         checkpoint_every=100,
         num_checkpoints=5,
         pretrained_embeddings=pretrained_embeddings,
-        train_embeddings=False)
+        train_embeddings=cnn_train_embeddings)
     
     model_summary_dir = os.path.join(cnn.output_dir, 'summaries')
     if os.path.exists(model_summary_dir):
@@ -414,5 +417,39 @@ def mood_classification():
                             
     return
 
+
+def main():
     
-    return
+    configure_logging(logname='mood_classification')
+    prep_nltk()
+
+    word_tokenizers = [                # Option
+        None,                          # 0
+        word_tokenize,                 # 1
+        WordPunctTokenizer().tokenize  # 2
+    ]
+
+    mood_classification(
+        use_pretrained_embeddings=True,
+        regen_pretrained_embeddings=True,
+        cnn_train_embeddings=False,
+        word_tokenizer=word_tokenizers[1],
+        # Data parameters
+        vocab_size=50000,
+        # Model Hyperparameters
+        embedding_size=300,
+        filter_sizes=[3,4,5],
+        num_filters=300,
+        dropout=0.75,
+        l2_reg_lambda=0.01,
+        # Training parameters
+        batch_size=64,
+        num_epochs=12,
+        evaluate_every=100,
+        checkpoint_every=100,
+        num_checkpoints=5,
+    )
+
+if __name__ == '__main__':
+    main()
+    

@@ -25,7 +25,6 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 
-VOCAB_SIZE = 50000
 UNKNOWN_TAG = 'UNK'
 LOGS_TF_DIR = 'logs/tf'
 LYRICS2VEC_DIR = os.path.join(LOGS_TF_DIR, 'lyrics2vec_expanded')
@@ -42,7 +41,8 @@ class lyrics2vec(object):
     thank you: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/tutorials/word2vec/word2vec_basic.py
     """
     
-    def __init__(self):
+    def __init__(self, vocab_size):
+        self.vocab_size = vocab_size
         self.data_index = 0
         return
     
