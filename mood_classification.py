@@ -17,7 +17,39 @@ from nltk.corpus import stopwords
 
 
 LYRICS_CSV_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
-                            'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']
+                            'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']   
+word_tokenizers = {
+    None: 0,
+    word_tokenize: 1,
+    WordPunctTokenizer().tokenize: 2
+}
+# thank you: https://stackoverflow.com/questions/483666/python-reverse-invert-a-mapping
+word_tokenizers_ids = {v: k for k, v in word_tokenizers.items()}
+
+
+def build_tensorboard_cmd(experiments):
+    """
+    Constructs a tensorboard command out of <runs>
+    Ex: !tensorboard --logdir 
+        w2v0:logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/,
+        w2v0-moodexp:logs/tf/runs/Em-300_FS-3-4-5_NF-64_D-0.5_L2-0.01_B-64_Ep-20_W2V-0-Tr_V-50000/summaries/
+
+    Args:
+        runs: list of tuples, each tuple is a run with (<name>, <path>)
+
+    Returns: str, tensorboard logdir
+    """
+    logdir = ''
+    for experiment in experiments:
+        if len(experiment) != 2:
+            logger.error('improperly formatted experiment: {0}'.format(experiment))
+            continue
+        name = experiment[0]
+        path = experiment[1]
+        logdir += '{0}:{1},'.format(name, path)
+    # remove final comma
+    logdir = logdir[:-1]
+    return 'tensorboard --logdir {0}'.format(logdir)
 
 
 def prep_nltk():
@@ -29,45 +61,65 @@ def prep_nltk():
     return
 
 
-def lyrics_preprocessing(lyrics, tokenizer=word_tokenize):
+def preprocess_lyrics(self, lyrics, word_tokenizer, remove_stop=True, remove_punc=True,
+                     do_padding=False, cutoff=None):
     """
-    Apply this function to any lyric file contents before reading for embeddings
-    
-    NLTK stopwords: ['i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you',
-                     "you're", "you've", "you'll", "you'd", 'your', 'yours','yourself',
-                     'yourselves', 'he', 'him', 'his', 'himself', 'she', "she's", 'her',
-                     'hers', 'herself', 'it', "it's", 'its', 'itself', 'they', 'them',
-                     'their', 'theirs', 'themselves', 'what', 'which', 'who', 'whom',
-                     'this', 'that', "that'll", 'these', 'those', 'am', 'is', 'are',
-                     'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having',
-                     'do', 'does', 'did', 'doing','a', 'an', 'the', 'and', 'but', 'if',
-                     'or', 'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for',
-                     'with', 'about', 'against', 'between', 'into', 'through', 'during',
-                     'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in',
-                     'out','on', 'off', 'over', 'under', 'again', 'further', 'then', 'once',
-                     'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both',
-                     'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
-                     'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't',
-                     'can', 'will', 'just', 'don', "don't", 'should', "should've", 'now',
-                     'd', 'll', 'm', 'o', 're', 've', 'y', 'ain', 'aren', "aren't", 'couldn',
-                     "couldn't", 'didn', "didn't", 'doesn', "doesn't", 'hadn', "hadn't",
-                     'hasn', "hasn't", 'haven', "haven't", 'isn', "isn't", 'ma', 'mightn',
-                     "mightn't", 'mustn', "mustn't", 'needn', "needn't", 'shan', "shan't",
-                     'shouldn', "shouldn't", 'wasn', "wasn't", 'weren', "weren't", 'won',
-                     "won't", 'wouldn', "wouldn't"]
-    
-    Some suggested tokenizers (from: https://www.nltk.org/api/nltk.tokenize.html):
-      * word_tokenize
-      * WordPunctTokenizer().tokenize
-    
+    Transforms the provided lyrics with the word tokenizer and optionally
+    pads and removes stop words and punctuation
+
     Args:
-        lyrics: str, some amount of lyrics
+        lyrics: str, str to process
+        word_tokenizer: func, tokenization function
+        remove_stop: bool, if True, removes stopwords; Otherwise, does not
+        remove_punc: bool, if True, removes punctuation; Otherwise, does not
+        do_padding: bool, if True, pads the end of each lyric to <cutoff>
+        cutoff: int, pad limit
+
+    For reference, NLTK stopwords: [
+        'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you',
+        "you're", "you've", "you'll", "you'd", 'your', 'yours','yourself',
+        'yourselves', 'he', 'him', 'his', 'himself', 'she', "she's", 'her',
+        'hers', 'herself', 'it', "it's", 'its', 'itself', 'they', 'them',
+        'their', 'theirs', 'themselves', 'what', 'which', 'who', 'whom',
+        'this', 'that', "that'll", 'these', 'those', 'am', 'is', 'are',
+        'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having',
+        'do', 'does', 'did', 'doing','a', 'an', 'the', 'and', 'but', 'if',
+        'or', 'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for',
+        'with', 'about', 'against', 'between', 'into', 'through', 'during',
+        'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in',
+        'out','on', 'off', 'over', 'under', 'again', 'further', 'then', 'once',
+        'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both',
+        'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
+        'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't',
+        'can', 'will', 'just', 'don', "don't", 'should', "should've", 'now',
+        'd', 'll', 'm', 'o', 're', 've', 'y', 'ain', 'aren', "aren't", 'couldn',
+        "couldn't", 'didn', "didn't", 'doesn', "doesn't", 'hadn', "hadn't",
+        'hasn', "hasn't", 'haven', "haven't", 'isn', "isn't", 'ma', 'mightn',
+        "mightn't", 'mustn', "mustn't", 'needn', "needn't", 'shan', "shan't",
+        'shouldn', "shouldn't", 'wasn', "wasn't", 'weren', "weren't", 'won',
+        "won't", 'wouldn', "wouldn't"]
+
+    Useful tokenizer utility: https://www.nltk.org/api/nltk.tokenize.html
+
+    Returns:
+        list of str: words processed
     """
     # https://stackoverflow.com/questions/17390326/getting-rid-of-stop-words-and-document-tokenization-using-nltk
-    stop = stopwords.words('english') + list(string.punctuation)
-    tokens = [i for i in tokenizer(lyrics.lower()) if i not in stop]
+    # tokenization
+    stop = []
+    if remove_stop:
+        stop += stopwords.words('english')
+    if remove_punc:
+        stop += list(string.punctuation)
+    tokens = [i for i in word_tokenizer(lyrics.lower()) if i not in stop]
+    # padding
+    if do_padding:
+        if len(tokens) > cutoff:
+            tokens = tokens[:cutoff]
+        else:
+            tokens += ['<PAD>'] * (int(cutoff) - int(len(tokens)))
     return tokens
-
+    
 
 def import_lyrics_data(csv_path, usecols=None):
     """
@@ -142,7 +194,7 @@ def categorize_lyrics_data(df):
     return df
     
     
-def extract_lyrics(lyrics_filepath):
+def extract_lyrics_from_file(lyrics_filepath):
     """
     Extract lyrics from provided file path
     
@@ -187,20 +239,6 @@ def make_lyrics_txt_path(lyrics_filename, lyrics_dir=LYRICS_TXT_DIR):
     return os.path.join(lyrics_dir, lyrics_filename) + '.txt'
 
 
-def split_data(df):
-    """
-    Splits the supplied ndarray into three sections of
-    """
-    # thank you: https://stackoverflow.com/questions/38250710/how-to-split-data-into-3-sets-train-validation-and-test/38251213#38251213
-    # optional random dataframe shuffle
-    #df = df.reindex(np.random.permutation(df.index))
-    df_train, df_dev, df_test = np.split(df.sample(frac=1), [int(.6*len(df)), int(.8*len(df))])
-    logger.info('df_train shape: {0}, pct: {1}'.format(df_train.shape, df_train.shape[0] / len(df)))
-    logger.info('df_dev shape: {0}, pct: {1}'.format(df_dev.shape, df_dev.shape[0] / len(df)))
-    logger.info('df_test shape: {0}, pct: {1}'.format(df_test.shape, df_test.shape[0] / len(df)))
-    return df_train, df_dev, df_test
-
-
 def compute_lyrics_cutoff(df):
     pctiles = df.wordcount.describe()
     logger.debug(pctiles)
@@ -209,34 +247,7 @@ def compute_lyrics_cutoff(df):
     return cutoff
 
 
-def normalize_lyrics(lyrics, max_length, lyrics_vectorizer):
-    """
-    Tokenize, process, shorten/lengthen, and vectorize lyrics
-    """
-    lyrics = lyrics_preprocessing(lyrics)
-    if len(lyrics) > max_length:
-        lyrics = lyrics[:max_length]
-    else:
-        lyrics += ['<PAD>'] * (int(max_length) - int(len(lyrics)))
-
-    lyric_vector = lyrics_vectorizer.transform(lyrics)
-    return lyric_vector
-
-
-def split_x_y(df_train, df_dev, df_test):
-    
-    x_train = np.array(list(df_train.normalized_lyrics))
-    y_train = pd.get_dummies(df_train.mood).values
-    x_dev = np.array(list(df_dev.normalized_lyrics))
-    y_dev = pd.get_dummies(df_dev.mood).values
-    x_test = np.array(list(df_test.normalized_lyrics))
-    y_test = pd.get_dummies(df_test.mood).values
-  
-    return x_train, y_train, x_dev, y_dev, x_test, y_test 
-
-
-#### TODO!!!! Resolve circular references!!! We need dataset to spit out 
-def build_lyrics_dataset(lyrics_csv, split=True):
+def build_lyrics_dataset(lyrics_csv, word_tokenizer):
     """
     Imports csv, filters unneeded data, and imports lyrics into a dataframe
     
@@ -256,85 +267,102 @@ def build_lyrics_dataset(lyrics_csv, split=True):
 
     # import the lyrics
     # here we make use of panda's apply function to parallelize the IO operation
-    df['lyrics'] = df.lyrics_filename.apply(lambda x: extract_lyrics(make_lyrics_txt_path(x)))
+    df['lyrics'] = df.lyrics_filename.apply(lambda x: extract_lyrics_from_file(make_lyrics_txt_path(x)))
     logger.info('Data shape after lyrics addition: {0}'.format(df.shape))
     logger.info('Df head:\n{0}'.format(df.lyrics.head()))
-
-    words = extract_words(df.lyrics)
-    lyrics_vectorizer = lyrics2vec()
-    lyrics_vectorizer.build_dataset(VOCAB_SIZE, words)
-    # normalize the lyrics
+    
+    # preprocess the lyrics
     cutoff = compute_lyrics_cutoff(df)
-    logger.info("Normalizing lyrics... (this will take a minute)")
-    start = time.time()
-    # here we make use of panda's apply function to parallelize the IO operation (again)
-    df['normalized_lyrics'] = df.lyrics.apply(lambda x: normalize_lyrics(x, cutoff, lyrics_vectorizer))
-    logger.info('data normalized ({0} minutes)'.format((time.time() - start) / 60))
-    logger.debug(df.normalized_lyrics.head())
-
-    # dumps some examples
-    logger.info('\nExample of padding:')
-    example = df.normalized_lyrics[df.normalized_lyrics.str.len() == cutoff].iloc[0]
-    logger.info('\tFirst 5 tokens: {0}'.format(example[:5]))
-    logger.info('\tLast 5 tokens: {0}.'.format(example[-5:]))
-
-    logger.info('\nElapsed Time: {0} minutes'.format((time.time() - start) / 60))
+    df['preprocessed_lyrics'] = df.lyrics.apply(
+        lambda x: preprocess_lyrics(x, word_tokenizer, do_padding=True, cutoff=cutoff)) 
 
     return df
+
+
+def vectorize_lyrics_dataset(df, lyrics_vectorizer):
+    """
+    Adds a 'normalized_lyrics' column to the provided dataframe.
+    
+    Column is the integer and processed vector representation of
+    the lyrics column.
+    
+    Args:
+        df: pd.DataFrame, dataframe with 'lyrics' column to process
+        
+    Returns:
+        pd.DataFrame with 'normalized lyrics' column
+    """
+    logger.info("Normalizing lyrics... (this will take a minute)")
+    start = time.time()
+
+    # here we make use of panda's apply function to parallelize the IO operation (again)
+    df['vectorized_lyrics'] = df.preprocessed_lyrics.apply(lambda x: lyrics_vectorizer.transform(x))
+    logger.info('lyrics vectorized ({0} minutes)'.format((time.time() - start) / 60))
+    logger.debug(df.vectorized_lyrics.head())
+
+    logger.info('\nElapsed Time: {0} minutes'.format((time.time() - start) / 60))
+    return df
+
+
+def split_data(df):
+    """
+    Splits the supplied ndarray into three sections of train, dev, and test
+    """
+    # thank you: https://stackoverflow.com/questions/38250710/how-to-split-data-into-3-sets-train-validation-and-test/38251213#38251213
+    # optional random dataframe shuffle
+    #df = df.reindex(np.random.permutation(df.index))
+    df_train, df_dev, df_test = np.split(df.sample(frac=1), [int(.6*len(df)), int(.8*len(df))])
+    logger.info('df_train shape: {0}, pct: {1}'.format(df_train.shape, df_train.shape[0] / len(df)))
+    logger.info('df_dev shape: {0}, pct: {1}'.format(df_dev.shape, df_dev.shape[0] / len(df)))
+    logger.info('df_test shape: {0}, pct: {1}'.format(df_test.shape, df_test.shape[0] / len(df)))
+    return df_train, df_dev, df_test
+
+
+def split_x_y(df_train, df_dev, df_test):
+    
+    x_train = np.array(list(df_train.normalized_lyrics))
+    y_train = pd.get_dummies(df_train.mood).values
+    x_dev = np.array(list(df_dev.normalized_lyrics))
+    y_dev = pd.get_dummies(df_dev.mood).values
+    x_test = np.array(list(df_test.normalized_lyrics))
+    y_test = pd.get_dummies(df_test.mood).values
+  
+    return x_train, y_train, x_dev, y_dev, x_test, y_test 
 
 
 def mood_classification(use_pretrained_embeddings, regen_pretrained_embeddings, cnn_train_embeddings,
                        word_tokenizer, vocab_size, embedding_size, filter_sizes, num_filters, dropout,
                        l2_reg_lamda, batch_size, num_epochs, evaluate_every, checkpoint_every,
-                       num_checkpoints):
+                       num_checkpoints, launch_tensorboard=False, best_model=None):
     """
     One big function to control everything post data collection in the project from embeddings to cnn
     """
-    lyrics_vectorizer = lyrics2vec()
+    ### Step 1: Load Lyrics   
+    df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv')
+    words = extract_words_from_lyrics(df['lyrics'])
+    lyrics_vectorizer = lyrics2vec.init_from_lyrics(vocab_size, words, word_tokenizers[word_tokenizer])
+    
+    ### Step 2: Train Embeddings (Optionally)
     if regen_pretrained_embeddings:
-        # only extract words if we absolutely need to as it takes ~5 minutes
-        datasets_loaded = False
-        # first look for pickled datasets
-        #datasets_loaded = lyrics_vectorizer.load_datasets()
-        if not datasets_loaded:
-            df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv')
-            return
-            words = extract_words(df.lyrics)
-            words = lyrics_vectorizer.extract_words(LYRICS_TXT_DIR, lyrics_preprocessing, words_file=VOCABULARY_FILE)
-            lyrics_vectorizer.build_dataset(VOCAB_SIZE, words)
-            lyrics_vectorizer.save_datasets()
-
-    embeddings_loaded = False
-    # only train embeddings if we absolutely need to as it takes a while!
-    #embeddings_loaded = lyrics_vectorizer.load_embeddings()
-    if not embeddings_loaded:
-        lyrics_vectorizer.train(V=V)
+        lyrics_vectorizer.train()
         lyrics_vectorizer.save_embeddings()
+        lyrics_vectorizer.plot_with_labels()
+    if use_pretrained_embeddings and not regen_pretrained_embeddings:
+        lyrics_vectorizer.load_embeddings()
 
-    lyrics_vectorizer.plot_with_labels(os.path.join(LYRICS2VEC_DIR, 'embeddings_expanded.png'))
+    ### Step 3: Vectorize Lyrics
+    df = vectorize_lyrics_dataset(df, lyrics_vectorizer)
 
+    # dump some examples
+    logger.info('\tExample song lyrics: {0}'.format(df.lyrics.iloc[0]))
+    logger.info('\tExample preprocessed lyrics: {0}'.format(df.preprocessed_lyrics.iloc[0]))
+    logger.info('\tExample vectorized lyrics: {0}'.format(df.vectorized_lyrics.iloc[0]))
 
-    configure_logging('lyrics_cnn')
-
-    args = parse_args()
-
-    np.random.seed(args.seed)
-    if not args.skip_pickles and os.path.exists(LYRICS_CNN_DF_TRAIN_PICKLE):
-        df_train = lyrics2vec.unpicklify(LYRICS_CNN_DF_TRAIN_PICKLE)
-        df_dev = lyrics2vec.unpicklify(LYRICS_CNN_DF_DEV_PICKLE)
-        df_test = lyrics2vec.unpicklify(LYRICS_CNN_DF_TEST_PICKLE)
-    else:
-        df = lyrics2vec.build_lyrics_dataset(args.labeled_lyrics_csv)
-        df_train, df_dev, df_test = lyrics2vec.split_data(df)
-        pickle_datasets(df_train, df_dev, df_test)
-    
+    ### Step 4: Split Data
+    df_train, df_dev, df_test = split_data(df)
     x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test)
-
-    pretrained_embeddings = None
-    if args.use_word2vec:
-        logger.info('getting pretrained embeddings')
-        pretrained_embeddings = get_pretrained_embeddings()
     
+    ### Step 5: Prepare to Train the CNN
     cnn = LyricsCNN(
         # Data parameters
         sequence_length=x_train.shape[1],
@@ -355,6 +383,7 @@ def mood_classification(use_pretrained_embeddings, regen_pretrained_embeddings, 
         pretrained_embeddings=pretrained_embeddings,
         train_embeddings=cnn_train_embeddings)
     
+    # check for prexisting data; we don't want to overwrite something on accident!
     model_summary_dir = os.path.join(cnn.output_dir, 'summaries')
     if os.path.exists(model_summary_dir):
         logger.info('Detected possible duplicate model: {0}'.format(cnn.output_dir))
@@ -373,24 +402,21 @@ def mood_classification(use_pretrained_embeddings, regen_pretrained_embeddings, 
             else:
                 print('response not accepted')
     
+    # launch tensorboard so you can watch your model train!
     tb_proc = None
-    if args.launch_tensorboard:
+    if launch_tensorboard:
         logger.info('Launching tensorboard...')
-        #best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
-        #best = ('w2v1_1', 'logs/tf/runs/Em-300_FS-3-4-5_NF-264_D-0.5_L2-0.01_B-128_Ep-10_W2V-1_V-50000/summaries/')
-        #best = ('w2v1_2', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.5_L2-0.01_B-64_Ep-20_W2V-1_V-50000/summaries/')   # 52.74
-        best = ('w2v1_3', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-64_Ep-12_W2V-1_V-50000/summaries/')   # 54.30, 1.832
-        # nope = ('w2v1_4', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.1_B-64_Ep-12_W2V-1_V-50000/summaries')   # 47.36
-        # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
-        tb_cmd = build_tensorboard_cmd([best, ('new', model_summary_dir)])
+        tb_models = list()
+        if best_model:
+            tb_models.append(best_model)
+        tb_models.append(('new', model_summary_dir))
+        logger.info('tb_models: {0}'.format(tb_models))
+        tb_cmd = build_tensorboard_cmd(tb_models)
         logger.info(tb_cmd)
+        # launch
         tb_proc = subprocess.Popen(tb_cmd.split())
-
-    # Notes
-    # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
-    # * higher num_filters means more memory_usage; lower batch_size to make up for it
-    #     * num_filters = 512 is too much
-        
+    
+    ### Step 5: Train the CNN
     try:
         cnn.train(
             x_train,
@@ -422,12 +448,19 @@ def main():
     
     configure_logging(logname='mood_classification')
     prep_nltk()
+    np.random.seed(12)
 
-    word_tokenizers = [                # Option
-        None,                          # 0
-        word_tokenize,                 # 1
-        WordPunctTokenizer().tokenize  # 2
-    ]
+    #best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
+    #best = ('w2v1_1', 'logs/tf/runs/Em-300_FS-3-4-5_NF-264_D-0.5_L2-0.01_B-128_Ep-10_W2V-1_V-50000/summaries/')
+    #best = ('w2v1_2', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.5_L2-0.01_B-64_Ep-20_W2V-1_V-50000/summaries/')   # 52.74
+    best = ('w2v1_3', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-64_Ep-12_W2V-1_V-50000/summaries/')   # 54.30, 1.832
+    # nope = ('w2v1_4', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.1_B-64_Ep-12_W2V-1_V-50000/summaries')   # 47.36
+    # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
+
+    # Notes
+    # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
+    # * higher num_filters means more memory_usage; lower batch_size to make up for it
+    #     * num_filters = 512 is too much
 
     mood_classification(
         use_pretrained_embeddings=True,
@@ -448,7 +481,10 @@ def main():
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
+        launch_tensorboard=True,
+        best_model=best
     )
+
 
 if __name__ == '__main__':
     main()

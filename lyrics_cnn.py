@@ -75,31 +75,6 @@ def get_pretrained_embeddings():
     return lyrics_vectorizer.final_embeddings
 
 
-def build_tensorboard_cmd(experiments):
-    """
-    Constructs a tensorboard command out of <runs>
-    Ex: !tensorboard --logdir 
-        w2v0:logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/,
-        w2v0-moodexp:logs/tf/runs/Em-300_FS-3-4-5_NF-64_D-0.5_L2-0.01_B-64_Ep-20_W2V-0-Tr_V-50000/summaries/
-
-    Args:
-        runs: list of tuples, each tuple is a run with (<name>, <path>)
-
-    Returns: str, tensorboard logdir
-    """
-    logdir = ''
-    for experiment in experiments:
-        if len(experiment) != 2:
-            logger.error('improperly formatted experiment: {0}'.format(experiment))
-            continue
-        name = experiment[0]
-        path = experiment[1]
-        logdir += '{0}:{1},'.format(name, path)
-    # remove final comma
-    logdir = logdir[:-1]
-    return 'tensorboard --logdir {0}'.format(logdir)
-
-
 class LyricsCNN(object):
     """
     A CNN for mood classification of lyrics

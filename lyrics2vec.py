@@ -40,83 +40,45 @@ class lyrics2vec(object):
     """
     thank you: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/tutorials/word2vec/word2vec_basic.py
     """
-    
-    def __init__(self, vocab_size):
+    REVERSED_DICTIONARY_PICKLE_NAME = 'revdict'
+    DICTIONARY_PICKLE_NAME = 'dict'
+    DATA_PICKLE_NAME = 'data'
+    COUNT_PICKLE_NAME = 'count'
+    EMBEDDINGS_PICKLE_NAME = 'embeddings' 
+
+    def __init__(self, vocab_size, word_tokenizer_id):
+        """
+      word_tokenizer_id: int, id of word tokenizer (from mood_classification.lyrics_preprocessor)
+              to be used when saving/restoring dataset
+        """
         self.vocab_size = vocab_size
+        self.word_tokenizer_id = word_tokenizer_id
         self.data_index = 0
-        return
+        # dataset
+        self.count = list()
+        self.data = list()
+        self.dictionary = dict()
+        self.reversed_dictionary = dict()
     
     @classmethod
-    def InitFromLyrics(lyrics_root, preprocessing_func, words_file=VOCABULARY_FILE):
-        LyricsVectorizer = lyrics2vec()
-        # only extract words if we absolutely need to as it takes ~5 minutes
-        # first look for pickled datasets
-        datasets_loaded = LyricsVectorizer.load_datasets()
-        if not datasets_loaded:
-            words = LyricsVectorizer.extract_words(lyrics_root, preprocessing_func, words_file=words_file)
-            LyricsVectorizer.build_dataset(VOCAB_SIZE, words)
-            LyricsVectorizer.save_datasets()
-        return LyricsVectorizer
-  
-    def extract_words(self, preprocessing_func, root_dir=LYRICS_TXT_DIR, words_file=VOCABULARY_FILE):
+    def init_from_lyrics(vocab_size, words, word_tokenizer_id):
         """
-        Iterates over all files in <root_dir>, reads contents, applies
-        <preprocessing_func> on text, and returns a python list of all words
+        Initializer that builds dataset as well as inits
         
-        Args:
-          preprocessing_func: function, function to tokenize and possibly perform more ops to text
-          root_dir: str, root dir of lyrics (default: LYRICS_TXT_DIR)
-          words_file: str, path to vocabulary file (default: VOCABULARY_FILE)
+        Returns:
+            lyrics2vec: initialized with dataset lyrics2vec
         """
-        start = time.time()
-
-        words = list()
-        if words_file and os.path.exists(words_file):
-            logger.info('Words file already exists at {0}'.format(words_file))
-            logger.info('Words will be read from words file to save time.')
-            with open(words_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    words.append(line.replace('\n', ''))
-        else:
-            if words_file:
-                logger.warning('Provided words file path "{0}" does not exist. Using {1} instead.'.format(words_file, VOCABULARY_FILE))
-                words_file = VOCABULARY_FILE
-            else:
-                logger.info('No word_file provided. Creating new word file at {0}.'.format(VOCABULARY_FILE))
-                words_file = VOCABULARY_FILE
-            lyricfiles = os.listdir(root_dir)
-            num_files = len(lyricfiles)
-            contents_processed = 0
-            for count, lyricfile in enumerate(lyricfiles):
-                lyricfile = os.path.join(root_dir, lyricfile)
-                if count % 10000 == 0:
-                    logger.debug('{0}/{1} lyric files processed. {2:.02f} minutes elapsed. {3} contents processed. {4} words acquired.'.format(
-                        count, num_files, (time.time() - start) / 60, contents_processed, len(words)))
-                contents = read_file_contents(lyricfile)
-                if contents and contents[0]:
-                    tokens = preprocessing_func(contents[0])
-                    words += tokens
-                    #songs.append(tokens)
-                    contents_processed += 1
-
-            logger.info('Saving words to file {0}'.format(words_file))
-            with open(words_file, 'w', encoding='utf-8') as f:
-                for word in words:
-                    f.write(word + '\n')
-
-        logger.info('{0} words found'.format(len(words)))
-        logger.info('First {0} words:\n{1}'.format(10, words[:10]))
-
-        logger.info('Elapsed Time: {0} minutes.'.format((time.time() - start) / 60))
-
-        return words
-    
-    def build_dataset(self, n_words, words):
+        lyrics_vectorizer = lyrics2vec(vocab_size, words, word_tokenizer_id)
+        if regen_pretrained_embeddings:
+            lyrics_vectorizer.build_dataset(words)
+            lyrics_vectorizer.save_datasets(words)
+        return lyrics_vectorizer
+  
+    def build_dataset(self, words):
         """
         Process raw inputs into a dataset.
         
         Args:
-          n_words: int, number of words to retain IDs for
           words: list of str, raw inputs
         
         Initializes the following class data members:
@@ -160,26 +122,55 @@ class lyrics2vec(object):
             #print('{0} -> {1}'.format(word, lyric_ids[-1]))
         return lyric_ids
 
+    def _build_lyrics2vec_dir(self):
+        return 'lyrics2vec_V-{0}_Wt-{1}'.format(self.vocab_size, self.word_tokenizer_id)
+
+    def _pickle_path(self, pickle_name):
+        return os.path.join(self._build_lyrics2vec_dir(),
+                            'lyrics2vec_{0}.pickle'.format(pickle_name))
+    
     def load_datasets(self):
         loaded = False
-        if os.path.exists(LYRICS2VEC_DATA_PICKLE):
-            self.data = unpicklify(LYRICS2VEC_DATA_PICKLE)
-            self.count = unpicklify(LYRICS2VEC_COUNT_PICKLE)
-            self.dictionary = unpicklify(LYRICS2VEC_DICT_PICKLE)
-            self.reversed_dictionary = unpicklify(LYRICS2VEC_REVDICT_PICKLE)
+        data_pickle = self._pickle_path(self.DATA_PICKLE_NAME)
+        if os.path.exists(data_pickle):
+            # we assume that if one exists then they all exist
+            self.data = unpicklify(data_pickle)
+            self.count = unpicklify(
+                self._pickle_path(self.COUNT_PICKLE_NAME))
+            self.dictionary = unpicklify(
+                self._pickle_path(self.DATA_PICKLE_NAME))
+            self.reversed_dictionary = unpicklify(
+                self._pickle_path(self.REVERSED_DICTIONARY_PICKLE_NAME))
             loaded = True
-            logger.info('datasets successfully loaded via pickle')
+            logger.info('lyrics2vec datasets successfully loaded via pickle')
         else:
-            logger.info('cannot load datasets! no pickle data files found')
+            logger.error('cannot load lyrics2vec datasets! no pickle data files found')
         return loaded
     
     def save_datasets(self):
-        picklify(self.data, LYRICS2VEC_DATA_PICKLE)
-        picklify(self.count, LYRICS2VEC_COUNT_PICKLE)
-        picklify(self.dictionary, LYRICS2VEC_DICT_PICKLE)
-        picklify(self.reversed_dictionary, LYRICS2VEC_REVDICT_PICKLE)
-        logger.info('datasets successfully pickled')
+        picklify(self.data, self._pickle_path(self.DATA_PICKLE_NAME))
+        picklify(self.count, self._pickle_path(self.COUNT_PICKLE_NAME))
+        picklify(self.dictionary, self._pickle_path(
+            self.DICTIONARY_PICKLE_NAME))
+        picklify(self.reversed_dictionary, self._pickle_path(
+            self.REVERSED_DICTIONARY_PICKLE_NAME))
+        logger.info('lyrics2vec datasets successfully pickled')
         return
+    
+    def save_embeddings(self):
+        picklify(self.data, self._pickle_path(self.DATA_PICKLE_NAME))
+        picklify(self.final_embeddings, self._pickle_path(self.EMBEDDINGS_PICKLE_NAME))
+        return
+    
+    def load_embeddings(self):
+        loaded = False
+        path = self._pickle_path(self.EMBEDDINGS_PICKLE_NAME)
+        if os.path.exists(path):
+            self.final_embeddings = unpicklify(path)
+            loaded = True
+        else:
+            logger.error('lyrics2vec cannot load final embeddings! no pickle data file found')
+        return loaded
     
     def _generate_batch(self, data, batch_size, num_skips, skip_window):
         assert batch_size % num_skips == 0
@@ -206,11 +197,10 @@ class lyrics2vec(object):
         self.data_index = (self.data_index + len(data) - span) % len(data)
         return batch, context
 
-    def train(self, V=50000, batch_size=128, embedding_size=128, skip_window=4, num_skips=2, num_sampled=64):
+    def train(self, batch_size=128, embedding_size=128, skip_window=4, num_skips=2, num_sampled=64):
         """
         Step 4: Build and train a skip-gram model.
         """
-        
         #batch_size = 128
         #embedding_size = 128  # Dimension of the embedding vector.
         #skip_window = 1  # How many words to consider left and right.
@@ -219,8 +209,9 @@ class lyrics2vec(object):
         #num_sampled = 64  # Number of negative examples to sample.
         
         logger.info('Building lyrics2vec graph')
-        logger.info('V={0}, batch_size={1}, embedding_size={2}, skip_window={3}, num_skips={4}, num_sampled={4}'.format(
-            V, batch_size, embedding_size, skip_window, num_skips, num_sampled))
+        logger.info('vocab_size={0}, batch_size={1}, embedding_size={2}, skip_window={3},'
+                    'num_skips={4}, num_sampled={4}'.format(self.vocab_size, batch_size,
+                        embedding_size, skip_window, num_skips, num_sampled))
         data_index = 0  # reset data_index for batch generation
         
         # We pick a random validation set to sample nearest neighbors. Here we limit the
@@ -246,17 +237,17 @@ class lyrics2vec(object):
                 # Look up embeddings for inputs.
                 with tf.name_scope('embeddings'):
                     embeddings = tf.Variable(
-                        tf.random_uniform([V, embedding_size], -1.0, 1.0))
+                        tf.random_uniform([self.vocab_size, embedding_size], -1.0, 1.0))
                     embed = tf.nn.embedding_lookup(embeddings, train_inputs)
 
             # Construct the variables for the NCE loss
             with tf.name_scope('weights'):
                 nce_weights = tf.Variable(
                     tf.truncated_normal(
-                        [V, embedding_size],
+                        [self.vocab_size, embedding_size],
                         stddev=1.0 / math.sqrt(embedding_size)))
             with tf.name_scope('biases'):
-                nce_biases = tf.Variable(tf.zeros([V]))
+                nce_biases = tf.Variable(tf.zeros([self.vocab_size]))
 
             # Compute the average NCE loss for the batch.
             # tf.nce_loss automatically draws a new sample of the negative labels each
@@ -271,7 +262,7 @@ class lyrics2vec(object):
                         labels=train_labels,
                         inputs=embed,
                         num_sampled=num_sampled,
-                        num_classes=V))
+                        num_classes=self.vocab_size))
 
             # Add the loss value as a scalar to summary.
             tf.summary.scalar('loss', loss)
@@ -304,7 +295,8 @@ class lyrics2vec(object):
 
         with tf.Session(graph=graph) as session:
             # Open a writer to write summaries.
-            writer = tf.summary.FileWriter(LYRICS2VEC_DIR, session.graph)
+            outdir = self._build_lyrics2vec_dir()
+            writer = tf.summary.FileWriter(outdir, session.graph)
 
             # We must initialize all variables before we use them.
             init.run()
@@ -358,18 +350,18 @@ class lyrics2vec(object):
             self.final_embeddings = normalized_embeddings.eval()
 
             # Write corresponding labels for the embeddings.
-            with open(LYRICS2VEC_DIR + '/metadata.tsv', 'w') as f:
+            with open(os.path.join(outdir, '/metadata.tsv'), 'w') as f:
                 for i in range(V):
                     f.write(self.reversed_dictionary[i] + '\n')
 
             # Save the model for checkpoints.
-            saver.save(session, os.path.join(LYRICS2VEC_DIR, 'model.ckpt'))
+            saver.save(session, os.path.join(outdir, 'model.ckpt'))
 
             # Create a configuration for visualizing embeddings with the labels in TensorBoard.
             config = projector.ProjectorConfig()
             embedding_conf = config.embeddings.add()
             embedding_conf.tensor_name = embeddings.name
-            embedding_conf.metadata_path = os.path.join(LYRICS2VEC_DIR, 'metadata.tsv')
+            embedding_conf.metadata_path = os.path.join(outdir, 'metadata.tsv')
             projector.visualize_embeddings(writer, config)
 
         writer.close()
@@ -377,26 +369,13 @@ class lyrics2vec(object):
         logger.info('Time Elapsed: {0} minutes'.format((time.time() - start) / 60))
         
         return
-    
-    def save_embeddings(self, dest=LYRICS2VEC_EMBEDDINGS_PICKLE):
-        picklify(self.final_embeddings, dest)
-        return
-    
-    def load_embeddings(self, src=LYRICS2VEC_EMBEDDINGS_PICKLE):
-        loaded = False
-        if os.path.exists(LYRICS2VEC_EMBEDDINGS_PICKLE):
-            self.final_embeddings = unpicklify(LYRICS2VEC_EMBEDDINGS_PICKLE)
-            loaded = True
-        else:
-            logger.info('cannot load final embeddings! no pickle data file found')
-        return loaded
 
-    def plot_with_labels(self, filename):
+    def plot_with_labels(self):
         """
         Function to draw visualization of distance between embeddings.
         """
         
-        logger.info('Beginning label plotting')
+        logger.info('Beginning lyrics2vec label plotting')
         start = time.time()
         
         tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000, method='exact')
@@ -417,7 +396,7 @@ class lyrics2vec(object):
                 ha='right',
                 va='bottom')
 
-            plt.savefig(filename)
+            plt.savefig(os.path.join(self._build_lyrics2vec_dir(), 'embeddings.png'))
         
         logger.info('Elapsed Time: {0}'.format((time.time() - start) / 60))
         logger.info('saved plot at {0}'.format(filename))
