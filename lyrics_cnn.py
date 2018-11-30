@@ -379,7 +379,6 @@ class LyricsCNN(object):
             step, summaries, loss, accuracy, preds = sess.run(
                 [global_step, summary_op, self.loss, self.accuracy, self.predictions],
                 feed_dict)
-            logger.info("step {}, loss {:g}, acc {:g}".format(step, loss, accuracy))
             ### Create and Save Confusion Matrix
             # https://stackoverflow.com/questions/38334296/reversing-one-hot-encoding-in-pandas
             # https://stackoverflow.com/questions/43051687/how-to-create-confusion-matrix-for-classification-in-tensorflow
@@ -390,6 +389,7 @@ class LyricsCNN(object):
             conf_output = os.path.join(self.output_dir, '{0}_confusion.csv'.format(step))
             pd.DataFrame(confusion).to_csv(conf_output)
             logger.info('confusion matrix saved to {}'.format(conf_output))
+        logger.info("step {}, loss {:g}, acc {:g}".format(step, loss, accuracy))
         if summary_writer:
             summary_writer.add_summary(summaries, step)
         if step_writer:

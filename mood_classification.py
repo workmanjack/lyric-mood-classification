@@ -428,6 +428,14 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         else:
             df = unpicklify(VECTORIZED_LYRICS_PICKLE)
 
+        if False:
+            # drop half of calm
+            df_calm = df[df.mood_cats == 4]
+            df_calm_half = df_calm[:int(len(df_calm)/2)]
+            df = df[df.mood_cats != 4]
+            df = pd.concat([df_calm_half, df])
+            logger.info('df shape after drop half of calm: {}'.format(df.shape))
+            import pdb; pdb.set_trace()
         # dump some examples
         #logger.info('Example song lyrics: {0}'.format(df.lyrics.iloc[0]))
         #logger.info('Example preprocessed lyrics: {0}'.format(df.preprocessed_lyrics_padded.iloc[0]))
@@ -576,7 +584,7 @@ def main():
         use_pretrained_embeddings=True,
         regen_pretrained_embeddings=False,
         revectorize_lyrics=False,
-        skip_to_training=True,
+        skip_to_training=False,
         cnn_train_embeddings=False,
         launch_tensorboard=True,
         best_model=best,
@@ -588,7 +596,7 @@ def main():
         l2_reg_lambda=0.01,
         # Training parameters
         batch_size=128,
-        num_epochs=12,
+        num_epochs=11,
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
