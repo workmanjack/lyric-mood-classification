@@ -153,7 +153,7 @@ def import_lyrics_data(csv_path, usecols=None):
     return df
 
     
-def filter_lyrics_data(df, drop=True):
+def filter_lyrics_data(df, drop=True, quadrants=True):
     """
     Removes rows of data not applicable to this project's analysis
 
@@ -183,7 +183,42 @@ def filter_lyrics_data(df, drop=True):
         # remove no longer needed columns to conserve memory
         df = df.drop(['is_english', 'lyrics_available', 'matched_mood'], axis=1)
         logger.info('Cols after drop: {0}'.format(df.columns))
+
+    if quadrants:
+        # merge moods into mood_quadrants
+        def make_quadrant_from_moods(df, quadrant_name, moods):
+            for mood in moods:
+                df.mood = df.mood.str.replace(mood, quadrant_name)
+            return df
+        # Quadrant 1
+        df = make_quadrant_from_moods(
+            df,
+            'anger',
+            ['aggression', 'angst', 'anger'])
+        # Quadrant 2
+        df = make_quadrant_from_moods(
+            df,
+            'happy',
+            ['excitement', 'upbeat', 'cheerful', 'happy'])
+        # Quadrant 3
+        df = make_quadrant_from_moods(
+            df,
+            'sad',
+            ['depressed', 'sad', 'grief'])
+        # Quadrant 4
+        df = make_quadrant_from_moods(
+            df,
+            'calm',
+            ['calm', 'confident'])
         
+        def filter_moods(df, moods):
+            for mood in moods:
+                 df = df[~df.mood.str.contains(mood)]
+            return df
+        df = filter_moods(
+            df,
+            ['dreamy', 'desire', 'earnest', 'pessimism', 'romantic', 'brooding'])
+
     return df
 
 
@@ -270,7 +305,7 @@ def compute_lyrics_cutoff(df):
     return cutoff
 
 
-def build_lyrics_dataset(lyrics_csv, word_tokenizer):
+def build_lyrics_dataset(lyrics_csv, word_tokenizer, quadrants):
     """
     Imports csv, filters unneeded data, and imports lyrics into a dataframe
     
@@ -284,7 +319,7 @@ def build_lyrics_dataset(lyrics_csv, word_tokenizer):
     """
     # import, filter, and categorize the data
     df = import_lyrics_data(lyrics_csv)
-    df = filter_lyrics_data(df, drop=True)
+    df = filter_lyrics_data(df, drop=True, quadrant=quadrants)
     df = categorize_lyrics_data(df)
 
     # import the lyrics
@@ -367,8 +402,9 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
                         use_pretrained_embeddings, regen_pretrained_embeddings, 
                         cnn_train_embeddings, word_tokenizer, vocab_size, embedding_size,
                         filter_sizes, num_filters, dropout, l2_reg_lambda, batch_size, 
-                        num_epochs, skip_to_training, 
-                        evaluate_every, checkpoint_every, num_checkpoints, launch_tensorboard=False, 
+                        num_epochs, skip_to_training, quadrants,
+                        evaluate_every, checkpoint_every, num_checkpoints, 
+                        launch_tensorboard=False, name=None,
                         best_model=None):
     """
     One big function to control everything post data collection in the project from embeddings to cnn
@@ -428,14 +464,14 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         else:
             df = unpicklify(VECTORIZED_LYRICS_PICKLE)
 
+        # drop half of calm
         if False:
-            # drop half of calm
             df_calm = df[df.mood_cats == 4]
             df_calm_half = df_calm[:int(len(df_calm)/2)]
             df = df[df.mood_cats != 4]
             df = pd.concat([df_calm_half, df])
             logger.info('df shape after drop half of calm: {}'.format(df.shape))
-            import pdb; pdb.set_trace()
+            
         # dump some examples
         #logger.info('Example song lyrics: {0}'.format(df.lyrics.iloc[0]))
         #logger.info('Example preprocessed lyrics: {0}'.format(df.preprocessed_lyrics_padded.iloc[0]))
@@ -481,7 +517,8 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         checkpoint_every=checkpoint_every,
         num_checkpoints=num_checkpoints,
         pretrained_embeddings=lyrics_vectorizer.final_embeddings,
-        train_embeddings=cnn_train_embeddings)
+        train_embeddings=cnn_train_embeddings,
+        name=name)
     
     logger.info('Checking for prexisting data...')
     # check for prexisting data; we don't want to overwrite something on accident!
@@ -568,7 +605,7 @@ def main():
     # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
     # nope = ('w2v1_6', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-32_Ep-6_W2V-1_V-49999/summaries')  # 51.81, 1.8
     # nope = ('w2v1_7', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-12_W2V-1_V-49999/')  # 53.30, 1.832
-
+    best2 = ('w2v1_3_quadrants, ''logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-11_W2V-1_V-49999_mood-quadrants/summaries/')  # ~59.5, ~1.5
     # Notes
     # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
     # * higher num_filters means more memory_usage; lower batch_size to make up for it
@@ -576,18 +613,22 @@ def main():
     # * adding <PAD> to embeddings causes the loss to go to infinity within the first batch...
     # * lyrics2vec can be converted to doc2vec by removing self.count and sending in lists of tokens where each song is a list
     # * lyrics2vec training takes about 6 minutes
+    # * adadelta optimizer significantly fixes overtraining problem but accuracy is only ~40%
+    # * halving calm leads better conf matrix but accuracy and loss suffer and overtraining gets worse
 
     mood_classification(
         # Controls
+        name='mood-quadrants_adadelta',
         regen_dataset=False,
         regen_lyrics2vec_dataset=False,
         use_pretrained_embeddings=True,
         regen_pretrained_embeddings=False,
         revectorize_lyrics=False,
-        skip_to_training=False,
+        skip_to_training=True,
         cnn_train_embeddings=False,
+        quadrants=True,
         launch_tensorboard=True,
-        best_model=best,
+        best_model=best2,
         # Model Hyperparameters
         embedding_size=300,
         filter_sizes=[3,4,5],

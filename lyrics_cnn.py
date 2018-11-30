@@ -86,7 +86,7 @@ class LyricsCNN(object):
     def __init__(self, batch_size, num_epochs, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes,
                  num_filters, l2_reg_lambda=0.0, dropout=0.5, pretrained_embeddings=None, train_embeddings=False,
                 use_timestamp=False, output_dir=None, evaluate_every=100, checkpoint_every=100, num_checkpoints=5,
-                graph=None):
+                graph=None, name=None):
         """
         Initializes class. Creates experiment_name. Initializes TF variables.
         
@@ -112,7 +112,8 @@ class LyricsCNN(object):
             checkpoint_every: int, number of steps between each model checkpoint
             num_checkpoints: int, total number of checkpoints to save
             graph: tf graph, initialized and ready to go tf graph
-                
+            name: str, extra name to add to end of experiment string
+
         Returns: one LyricsCNN
         """
         self.batch_size = batch_size
@@ -132,6 +133,8 @@ class LyricsCNN(object):
         self.num_checkpoints = num_checkpoints
         
         self.experiment_name = self._build_experiment_name(timestamp=use_timestamp)
+        if name:
+            self.experiment_name += '_{0}'.format(name)
         self.output_dir = self._build_output_dir(output_dir)
 
         # Set TensorFlow graph. All TF code will work on this graph.
@@ -423,12 +426,7 @@ class LyricsCNN(object):
             global_step = tf.Variable(0, name="global_step", trainable=False)
             # Optimizer Learning Rate
             # https://towardsdatascience.com/understanding-learning-rates-and-how-it-improves-performance-in-deep-learning-d0d4059c1c10
-            optimizer = tf.train.AdamOptimizer(
-                learning_rate=0.001,
-                beta1=0.9,
-                beta2=0.999,
-                epsilon=1e-08,
-            )
+            optimizer = tf.train.AdadeltaOptimizer()
             grads_and_vars = optimizer.compute_gradients(self.loss)
             train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
