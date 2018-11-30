@@ -605,7 +605,7 @@ def main():
     # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
     # nope = ('w2v1_6', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-32_Ep-6_W2V-1_V-49999/summaries')  # 51.81, 1.8
     # nope = ('w2v1_7', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-12_W2V-1_V-49999/')  # 53.30, 1.832
-    best2 = ('w2v1_3_quadrants, ''logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-11_W2V-1_V-49999_mood-quadrants/summaries/')  # ~59.5, ~1.5
+    best2 = ('w2v1_3_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-11_W2V-1_V-49999_mood-quadrants/summaries/')  # ~59.5, ~1.5
     # Notes
     # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
     # * higher num_filters means more memory_usage; lower batch_size to make up for it
