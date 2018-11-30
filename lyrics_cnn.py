@@ -81,7 +81,7 @@ class LyricsCNN(object):
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
     
     Thank you to http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/
-    and https://agarnitin86.github.io/blog/2016/12/23/text-classification-
+    and https://agarnitin86.github.io/blog/2016/12/23/text-classification-cnn
     """
     def __init__(self, batch_size, num_epochs, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes,
                  num_filters, l2_reg_lambda=0.0, dropout=0.5, pretrained_embeddings=None, train_embeddings=False,
@@ -237,12 +237,14 @@ class LyricsCNN(object):
             # optional: supply your own embeddings
             # (note: embeddings must match embedding_size!)
             if self.pretrained_embeddings is not None:
+                logger.info('cnn: using pretrained embeddings')
                 self.W = tf.get_variable(
                     shape=self.pretrained_embeddings.shape,
                     initializer=tf.constant_initializer(self.pretrained_embeddings),
                     trainable=self.train_embeddings,
                     name="W")
             else:
+                logger.info('cnn: not using pretrained embeddings')
                 self.W = tf.Variable(
                     initial_value=tf.random_uniform([self.vocab_size, self.embedding_size], -1.0, 1.0),
                     trainable=self.train_embeddings,
@@ -367,17 +369,27 @@ class LyricsCNN(object):
             self.input_y: y_batch,
             self.dropout_keep_prob: self.dropout if train_op else 1.0
         }
+        time_str = datetime.datetime.now().isoformat()
         if train_op:
             _, step, summaries, loss, accuracy = sess.run(
                 [train_op, global_step, summary_op, self.loss, self.accuracy],
                 feed_dict)
         else:
             logger.info('Validation Step')
-            step, summaries, loss, accuracy = sess.run(
-                [global_step, summary_op, self.loss, self.accuracy],
+            step, summaries, loss, accuracy, preds = sess.run(
+                [global_step, summary_op, self.loss, self.accuracy, self.predictions],
                 feed_dict)
-        time_str = datetime.datetime.now().isoformat()
-        logger.info("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+            logger.info("step {}, loss {:g}, acc {:g}".format(step, loss, accuracy))
+            ### Create and Save Confusion Matrix
+            # https://stackoverflow.com/questions/38334296/reversing-one-hot-encoding-in-pandas
+            # https://stackoverflow.com/questions/43051687/how-to-create-confusion-matrix-for-classification-in-tensorflow
+            confusion = tf.confusion_matrix(
+                labels=pd.DataFrame(y_batch).idxmax(axis=1),
+                predictions=preds,
+                num_classes=self.num_classes).eval()
+            conf_output = os.path.join(self.output_dir, '{0}_confusion.csv'.format(step))
+            pd.DataFrame(confusion).to_csv(conf_output)
+            logger.info('confusion matrix saved to {}'.format(conf_output))
         if summary_writer:
             summary_writer.add_summary(summaries, step)
         if step_writer:
@@ -409,7 +421,14 @@ class LyricsCNN(object):
 
             # Define Training procedure
             global_step = tf.Variable(0, name="global_step", trainable=False)
-            optimizer = tf.train.AdamOptimizer(1e-3)
+            # Optimizer Learning Rate
+            # https://towardsdatascience.com/understanding-learning-rates-and-how-it-improves-performance-in-deep-learning-d0d4059c1c10
+            optimizer = tf.train.AdamOptimizer(
+                learning_rate=0.001,
+                beta1=0.9,
+                beta2=0.999,
+                epsilon=1e-08,
+            )
             grads_and_vars = optimizer.compute_gradients(self.loss)
             train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 

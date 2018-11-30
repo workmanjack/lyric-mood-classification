@@ -362,7 +362,7 @@ class lyrics2vec(object):
             # Save the model for checkpoints.
             saver.save(session, os.path.join(outdir, 'model.ckpt'))
 
-            # Create a configuration for visualizing embeddings with the labels in TensorBoard.
+            # Create a configuration for visualizing embeddings with the labels in TensorBoard
             config = projector.ProjectorConfig()
             embedding_conf = config.embeddings.add()
             embedding_conf.tensor_name = embeddings.name
@@ -380,10 +380,13 @@ class lyrics2vec(object):
         Function to draw visualization of distance between embeddings.
         """
         
+        outfile = os.path.join(self._build_lyrics2vec_dir(), 'embeddings.png')
+        if os.path.exists(outfile):
+            logger.info('embeddings already exists for this config at {0} so skipping'.format(outfile))
+            return                                                                                                                     
         logger.info('Beginning lyrics2vec label plotting')
         start = time.time()
         
-        outfile = os.path.join(self._build_lyrics2vec_dir(), 'embeddings.png')
         tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000, method='exact')
         plot_only = 500
         low_dim_embs = tsne.fit_transform(self.final_embeddings[:plot_only, :])

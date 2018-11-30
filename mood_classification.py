@@ -7,7 +7,9 @@ from lyrics_cnn import LyricsCNN
 # python and package imports
 import pandas as pd
 import numpy as np
+import subprocess
 import string
+import shutil
 import time
 import os
 
@@ -22,6 +24,7 @@ MOOD_CLASSIFICATION_DIR = os.path.join(LOGS_TF_DIR, 'mood_classification')
 os.makedirs(MOOD_CLASSIFICATION_DIR, exist_ok=True)
 MOODS_AND_LYRICS_PICKLE = os.path.join(MOOD_CLASSIFICATION_DIR, 'moods_and_lyrics.pickle')
 VECTORIZED_LYRICS_PICKLE = os.path.join(MOOD_CLASSIFICATION_DIR, 'vectorized_lyrics.pickle')
+X_Y_PICKLE = os.path.join(MOOD_CLASSIFICATION_DIR, 'x_y.pickle')
 LYRICS_CSV_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
                             'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']   
 word_tokenizers = {
@@ -164,8 +167,8 @@ def filter_lyrics_data(df, drop=True):
     """
     logger.info('Data shape before filtering: {0}'.format(df.shape))
     
-    df = df.drop_duplicates(subset='lyrics_filename')
-    logger.info('Shape after drop_duplicates filter: {0}'.format(df.shape))
+    #df = df.drop_duplicates(subset='lyrics_filename')
+    #logger.info('Shape after drop_duplicates filter: {0}'.format(df.shape))
 
     df = df[df.is_english == 1]
     logger.info('Shape after is_english == 1 filter: {0}'.format(df.shape))
@@ -199,7 +202,7 @@ def categorize_lyrics_data(df):
     """
     df.mood = pd.Categorical(df.mood)
     df['mood_cats'] = df.mood.cat.codes
-    logger.info('Unique mood categories:\n{0}'.format(df['mood'].unique()))
+    #logger.info('Unique mood categories:\n{0}'.format(df['mood'].unique()))
     logger.info('Shape after mood categorization: {0}'.format(df.shape))
     return df
     
@@ -281,7 +284,7 @@ def build_lyrics_dataset(lyrics_csv, word_tokenizer):
     """
     # import, filter, and categorize the data
     df = import_lyrics_data(lyrics_csv)
-    df = filter_lyrics_data(df, drop=False)
+    df = filter_lyrics_data(df, drop=True)
     df = categorize_lyrics_data(df)
 
     # import the lyrics
@@ -299,6 +302,8 @@ def build_lyrics_dataset(lyrics_csv, word_tokenizer):
     df['preprocessed_lyrics_padded'] = df.lyrics.apply(
         lambda x: preprocess_lyrics(x, word_tokenizer, do_padding=True, cutoff=cutoff)) 
     logger.info('Preprocessing completed')
+    logger.info('dropping df.lyrics')
+    df.drop('lyrics', axis=1)
     logger.info(full_elapsed_time_str(start))
     
     return df
@@ -324,8 +329,11 @@ def vectorize_lyrics_dataset(df, lyrics_vectorizer):
     df['vectorized_lyrics'] = df.preprocessed_lyrics_padded.apply(lambda x: lyrics_vectorizer.transform(x))
     logger.info('lyrics vectorized ({0} minutes)'.format((time.time() - start) / 60))
     logger.debug(df.vectorized_lyrics.head())
+    logger.info('dropping preprocessed lyrics columns')
+    df.drop('preprocessed_lyrics', axis=1)
+    df.drop('preprocessed_lyrics_padded', axis=1)
 
-    logger.info('\nElapsed Time: {0} minutes'.format((time.time() - start) / 60))
+    logger.info('Elapsed Time: {0} minutes'.format((time.time() - start) / 60))
     return df
 
 
@@ -358,77 +366,91 @@ def split_x_y(df_train, df_dev, df_test):
 def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyrics,
                         use_pretrained_embeddings, regen_pretrained_embeddings, 
                         cnn_train_embeddings, word_tokenizer, vocab_size, embedding_size,
-                        filter_sizes, num_filters, dropout, l2_reg_lambda, batch_size, num_epochs, 
+                        filter_sizes, num_filters, dropout, l2_reg_lambda, batch_size, 
+                        num_epochs, skip_to_training, 
                         evaluate_every, checkpoint_every, num_checkpoints, launch_tensorboard=False, 
                         best_model=None):
     """
     One big function to control everything post data collection in the project from embeddings to cnn
     """
     mood_classification_time = time.time()
-
-    # -------------------------------------------------------
-    logger.info('Step 1: Load Lyrics')
-    step_time = time.time()
     
-    if regen_dataset:
-        logger.info('building lyrics dataset')
-        df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv', word_tokenizer)
-        # some columns are lists so must use pickle not df.to_csv
-        #df.to_csv(MOODS_AND_LYRICS_CSV, encoding='utf-8')
-        picklify(df, MOODS_AND_LYRICS_PICKLE)
+    if not skip_to_training:
+
+        # -------------------------------------------------------
+        logger.info('Step 1: Load Lyrics')
+        step_time = time.time()
+
+        if regen_dataset:
+            logger.info('building lyrics dataset')
+            df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv', word_tokenizer)
+            # some columns are lists so must use pickle not df.to_csv
+            #df.to_csv(MOODS_AND_LYRICS_CSV, encoding='utf-8')
+            picklify(df, MOODS_AND_LYRICS_PICKLE)
+        else:
+            logger.info('reading dataset from {0}'.format(MOODS_AND_LYRICS_PICKLE))
+            #df = pd.read_csv(MOODS_AND_LYRICS_CSV, encoding='utf-8')
+            df = unpicklify(MOODS_AND_LYRICS_PICKLE)
+
+        #df = df[df.wordcount > 10]
+
+        lyrics_vectorizer = lyrics2vec.init_from_lyrics(
+            vocab_size,
+            extract_words_from_lyrics(df.preprocessed_lyrics),
+            word_tokenizers[word_tokenizer],
+            unpickle=not regen_lyrics2vec_dataset)
+
+        logger.info('Step 1 {0}'.format(full_elapsed_time_str(step_time)))
+        logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
+        # -------------------------------------------------------
+        logger.info('Step 2: Train Embeddings (Optionally)')
+        step_time = time.time()
+
+        if regen_pretrained_embeddings:
+            logger.info('regenerating pretrained embeddings')
+            lyrics_vectorizer.train()
+            lyrics_vectorizer.save_embeddings()
+            lyrics_vectorizer.plot_with_labels()
+        if use_pretrained_embeddings and not regen_pretrained_embeddings:
+            logger.info('reusing pretrained embeddings')
+            lyrics_vectorizer.load_embeddings()
+            logger.info('embeddings shape: {0}'.format(lyrics_vectorizer.final_embeddings.shape))
+
+        logger.info('Step 2 {0}'.format(full_elapsed_time_str(step_time)))
+        logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
+        # -------------------------------------------------------
+        logger.info('Step 3: Vectorize Lyrics')
+        step_time = time.time()
+
+        if revectorize_lyrics:
+            df = vectorize_lyrics_dataset(df, lyrics_vectorizer)
+            picklify(df, VECTORIZED_LYRICS_PICKLE)
+        else:
+            df = unpicklify(VECTORIZED_LYRICS_PICKLE)
+
+        # dump some examples
+        #logger.info('Example song lyrics: {0}'.format(df.lyrics.iloc[0]))
+        #logger.info('Example preprocessed lyrics: {0}'.format(df.preprocessed_lyrics_padded.iloc[0]))
+        #logger.info('Example vectorized lyrics: {0}'.format(df.vectorized_lyrics.iloc[0]))
+
+        logger.info('Step 3 {0}'.format(full_elapsed_time_str(step_time)))
+        logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
+        # -------------------------------------------------------
+        logger.info('Step 4: Split Data')
+        step_time = time.time()
+
+        df_train, df_dev, df_test = split_data(df)
+        x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test)
+        picklify([x_train, y_train, x_dev, y_dev, x_test, y_test], X_Y_PICKLE)
+
+        logger.info('Step 4 {0}'.format(full_elapsed_time_str(step_time)))
+        logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
     else:
-        logger.info('reading dataset from {0}'.format(MOODS_AND_LYRICS_PICKLE))
-        #df = pd.read_csv(MOODS_AND_LYRICS_CSV, encoding='utf-8')
-        df = unpicklify(MOODS_AND_LYRICS_PICKLE)
-
-    df = df[df.wordcount > 10]
-    words = extract_words_from_lyrics(df.preprocessed_lyrics)
-    lyrics_vectorizer = lyrics2vec.init_from_lyrics(vocab_size, words, word_tokenizers[word_tokenizer],
-                                                   unpickle=not regen_lyrics2vec_dataset)
-    logger.info('Step 1 {0}'.format(full_elapsed_time_str(step_time)))
-    logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
-    # -------------------------------------------------------
-    logger.info('Step 2: Train Embeddings (Optionally)')
-    step_time = time.time()
-
-    if regen_pretrained_embeddings:
-        logger.info('regenerating pretrained embeddings')
-        lyrics_vectorizer.train()
-        lyrics_vectorizer.save_embeddings()
-        lyrics_vectorizer.plot_with_labels()
-    if use_pretrained_embeddings and not regen_pretrained_embeddings:
-        logger.info('reusing pretrained embeddings')
+        x_train, y_train, x_dev, y_dev, x_test, y_test = unpicklify(X_Y_PICKLE)
+        lyrics_vectorizer = lyrics2vec(vocab_size, word_tokenizers[word_tokenizer])
         lyrics_vectorizer.load_embeddings()
-        logger.info('embeddings shape: {0}'.format(lyrics_vectorizer.final_embeddings.shape))
 
-    logger.info('Step 2 {0}'.format(full_elapsed_time_str(step_time)))
-    logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
-    # -------------------------------------------------------
-    logger.info('Step 3: Vectorize Lyrics')
-    step_time = time.time()
-    
-    if revectorize_lyrics:
-        df = vectorize_lyrics_dataset(df, lyrics_vectorizer)
-        picklify(df, VECTORIZED_LYRICS_PICKLE)
-    else:
-        df = unpicklify(VECTORIZED_LYRICS_PICKLE)
-
-    # dump some examples
-    logger.info('\tExample song lyrics: {0}'.format(df.lyrics.iloc[0]))
-    logger.info('\tExample preprocessed lyrics: {0}'.format(df.preprocessed_lyrics_padded.iloc[0]))
-    logger.info('\tExample vectorized lyrics: {0}'.format(df.vectorized_lyrics.iloc[0]))
-
-    logger.info('Step 3 {0}'.format(full_elapsed_time_str(step_time)))
-    logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
-    # -------------------------------------------------------
-    logger.info('Step 4: Split Data')
-    step_time = time.time()
-
-    df_train, df_dev, df_test = split_data(df)
-    x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test)
-    
-    logger.info('Step 4 {0}'.format(full_elapsed_time_str(step_time)))
-    logger.info('Mood Classification {0}'.format(full_elapsed_time_str(mood_classification_time)))
+        
     # -------------------------------------------------------
     logger.info('Step 5: Prepare to Train the CNN')
     step_time = time.time()
@@ -439,17 +461,17 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         num_classes=y_train.shape[1],
         vocab_size=vocab_size,
         # Model Hyperparameters
-        embedding_size=300,
-        filter_sizes=[3,4,5],
-        num_filters=300,
-        dropout=0.75,
-        l2_reg_lambda=0.01,
+        embedding_size=embedding_size,
+        filter_sizes=filter_sizes,
+        num_filters=num_filters,
+        dropout=dropout,
+        l2_reg_lambda=l2_reg_lambda,
         # Training parameters
-        batch_size=64,
-        num_epochs=12,
-        evaluate_every=100,
-        checkpoint_every=100,
-        num_checkpoints=5,
+        batch_size=batch_size,
+        num_epochs=num_epochs,
+        evaluate_every=evaluate_every,
+        checkpoint_every=checkpoint_every,
+        num_checkpoints=num_checkpoints,
         pretrained_embeddings=lyrics_vectorizer.final_embeddings,
         train_embeddings=cnn_train_embeddings)
     
@@ -536,6 +558,8 @@ def main():
     best = ('w2v1_3', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-64_Ep-12_W2V-1_V-50000/summaries/')   # 54.30, 1.832
     # nope = ('w2v1_4', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.1_B-64_Ep-12_W2V-1_V-50000/summaries')   # 47.36
     # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
+    # nope = ('w2v1_6', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-32_Ep-6_W2V-1_V-49999/summaries')  # 51.81, 1.8
+    # nope = ('w2v1_7', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-12_W2V-1_V-49999/')  # 53.30, 1.832
 
     # Notes
     # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
@@ -550,8 +574,9 @@ def main():
         regen_dataset=False,
         regen_lyrics2vec_dataset=False,
         use_pretrained_embeddings=True,
-        regen_pretrained_embeddings=True,
-        revectorize_lyrics=True,
+        regen_pretrained_embeddings=False,
+        revectorize_lyrics=False,
+        skip_to_training=True,
         cnn_train_embeddings=False,
         launch_tensorboard=True,
         best_model=best,
@@ -562,13 +587,13 @@ def main():
         dropout=0.75,
         l2_reg_lambda=0.01,
         # Training parameters
-        batch_size=64,
+        batch_size=128,
         num_epochs=12,
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
         # Data parameters
-        vocab_size=50000,
+        vocab_size=49999,
         word_tokenizer=word_tokenizers_ids[1],
     )
 
