@@ -190,6 +190,7 @@ def filter_lyrics_data(df, drop=True, quadrants=True):
             for mood in moods:
                 df.mood = df.mood.str.replace(mood, quadrant_name)
             return df
+        
         # Quadrant 1
         df = make_quadrant_from_moods(
             df,
@@ -305,6 +306,50 @@ def compute_lyrics_cutoff(df):
     return cutoff
 
 
+def pad_data(df):
+    """
+    Pads a dataframe so that all moods are equally represented by shuffling the lines of lyrics in the dataframe.
+    The strategy employed first duplicates the songs with shuffled lyrics. 
+    The fractional value required to make all the categories equal is sampled randomly.
+    We do not just sample randomly because then we may get an unequal distribution of padding (certain songs may be selected more than others).
+    
+    Args:
+        A dataframe with 'mood', 'lyrics'
+    
+    Returns:
+        A padded dataframe in which each mood has equal size.
+        
+    
+    """
+    from functools import reduce
+    from random import shuffle
+    import math
+    
+    def randomize_lyrics(row):
+        song = row.lyrics.split('\n')
+        shuffle(song)
+        row.lyrics = reduce((lambda x,y: x+'\n'+y) ,song)
+        return row
+
+    df_pad = pd.DataFrame(columns = df.columns)
+    
+    # Let's first try a strategy where we make all the groups as big as the biggest...
+    target_value = max(df.groupby('mood').agg('count').msd_id)
+
+    for mood in set(df.mood):
+        #first we copy each song so that they're all equally represented
+        current_value = df[df.mood==mood].shape[0]
+        loop = int(math.floor((target_value-current_value)/current_value))
+        for i in range(loop):
+            df_pad = df_pad.append(df[df.mood==mood].apply(randomize_lyrics, axis=1), ignore_index=True) 
+
+        # now sample to fill in to hit the target_value - current_value
+        n = target_value - current_value - df_pad[df_pad.mood == mood].shape[0]
+        df_pad = df_pad.append(df[df.mood==mood].sample(n).apply(randomize_lyrics, axis=1), ignore_index=True)
+        
+    return df.append(df_pad, ignore_index=True)
+
+
 def build_lyrics_dataset(lyrics_csv, word_tokenizer, quadrants):
     """
     Imports csv, filters unneeded data, and imports lyrics into a dataframe
@@ -327,6 +372,9 @@ def build_lyrics_dataset(lyrics_csv, word_tokenizer, quadrants):
     df['lyrics'] = df.lyrics_filename.apply(lambda x: extract_lyrics_from_file(make_lyrics_txt_path(x)))
     logger.info('Data shape after lyrics addition: {0}'.format(df.shape))
     logger.info('Df head:\n{0}'.format(df.lyrics.head()))
+    
+    logger.info('Sampling and Padding data to balance data.')
+    df = pad_data(df)
     
     # preprocess the lyrics
     logger.info('Beginning Preprocessing of Lyrics... this might take a couple minutes)')
