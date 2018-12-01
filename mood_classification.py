@@ -153,7 +153,7 @@ def import_lyrics_data(csv_path, usecols=None):
     return df
 
     
-def filter_lyrics_data(df, drop=True, quadrants=True):
+def filter_lyrics_data(df, drop=True, quadrants=True, equalize=False):
     """
     Removes rows of data not applicable to this project's analysis
 
@@ -219,7 +219,11 @@ def filter_lyrics_data(df, drop=True, quadrants=True):
         df = filter_moods(
             df,
             ['dreamy', 'desire', 'earnest', 'pessimism', 'romantic', 'brooding'])
-
+        
+    if equalize:
+        # TODO: equalize distribution of moods here
+        pass
+        
     return df
 
 
@@ -662,11 +666,12 @@ def main():
     # * lyrics2vec can be converted to doc2vec by removing self.count and sending in lists of tokens where each song is a list
     # * lyrics2vec training takes about 6 minutes
     # * adadelta optimizer significantly fixes overtraining problem but accuracy is only ~40%
+    #      * correction! adadelta takes overtraining to the extreme
     # * halving calm leads better conf matrix but accuracy and loss suffer and overtraining gets worse
 
     mood_classification(
         # Controls
-        name='mood-quadrants_adadelta',
+        name='mood-quadrants',
         regen_dataset=False,
         regen_lyrics2vec_dataset=False,
         use_pretrained_embeddings=True,
@@ -681,13 +686,13 @@ def main():
         embedding_size=300,
         filter_sizes=[3,4,5],
         num_filters=300,
-        dropout=0.75,
+        dropout=0.2,
         l2_reg_lambda=0.01,
         # Training parameters
         batch_size=128,
-        num_epochs=11,
-        evaluate_every=100,
-        checkpoint_every=100,
+        num_epochs=10,
+        evaluate_every=200,
+        checkpoint_every=200,
         num_checkpoints=5,
         # Data parameters
         vocab_size=49999,

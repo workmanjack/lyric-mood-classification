@@ -426,7 +426,7 @@ class LyricsCNN(object):
             global_step = tf.Variable(0, name="global_step", trainable=False)
             # Optimizer Learning Rate
             # https://towardsdatascience.com/understanding-learning-rates-and-how-it-improves-performance-in-deep-learning-d0d4059c1c10
-            optimizer = tf.train.AdadeltaOptimizer()
+            optimizer = tf.train.AdamOptimizer()
             grads_and_vars = optimizer.compute_gradients(self.loss)
             train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
