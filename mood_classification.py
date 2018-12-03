@@ -26,7 +26,8 @@ MOODS_AND_LYRICS_PICKLE = os.path.join(MOOD_CLASSIFICATION_DIR, 'moods_and_lyric
 VECTORIZED_LYRICS_PICKLE = os.path.join(MOOD_CLASSIFICATION_DIR, 'vectorized_lyrics.pickle')
 X_Y_PICKLE = os.path.join(MOOD_CLASSIFICATION_DIR, 'x_y.pickle')
 LYRICS_CSV_KEEP_COLS = ['msd_id', 'msd_artist', 'msd_title', 'is_english', 'lyrics_available',
-                            'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']   
+                            'wordcount', 'lyrics_filename', 'mood', 'found_tags', 'matched_mood']
+LYRICS_CSV_DTYPES = {'msd_id': str, 'msd_artist': str, 'msd_title': str, 'is_english': int, 'lyrics_available': int, 'wordcount': int, 'lyrics_filename': str, 'mood': str, 'found_tags': int, 'matched_mood': int} 
 word_tokenizers = {
     None: 0,
     word_tokenize: 1,
@@ -130,7 +131,7 @@ def preprocess_lyrics(lyrics, word_tokenizer, remove_stop=True, remove_punc=True
     return tokens
     
 
-def import_lyrics_data(csv_path, usecols=None):
+def import_lyrics_data(csv_path, usecols=None, dtype=None):
     """
     Imports data from the provided path
     
@@ -146,14 +147,15 @@ def import_lyrics_data(csv_path, usecols=None):
         # we leave out the musixmatch id, artist, and title cols as well as the mood scoreboard cols
         # as they are unneeded for the cnn
         usecols = LYRICS_CSV_KEEP_COLS
-    df = pd.read_csv(csv_path, usecols=usecols)
+        dtype = LYRICS_CSV_DTYPES
+    df = pd.read_csv(csv_path, usecols=usecols, dtype=dtype)
     
     logger.info('imported data shape: {0}'.format(df.shape))
     
     return df
 
     
-def filter_lyrics_data(df, drop=True, quadrants=True, equalize=False):
+def filter_lyrics_data(df, drop=True, quadrants=True):
     """
     Removes rows of data not applicable to this project's analysis
 
@@ -162,7 +164,8 @@ def filter_lyrics_data(df, drop=True, quadrants=True, equalize=False):
     Args:
         df: pd.DataFrame
         drop: bool, flag to drop filtered cols or not to save memory
-        
+        quadrants: bool, flag to group moods into quadrants or not
+
     Returns: filtered dataframe
     """
     logger.info('Data shape before filtering: {0}'.format(df.shape))
@@ -219,10 +222,6 @@ def filter_lyrics_data(df, drop=True, quadrants=True, equalize=False):
         df = filter_moods(
             df,
             ['dreamy', 'desire', 'earnest', 'pessimism', 'romantic', 'brooding'])
-        
-    if equalize:
-        # TODO: equalize distribution of moods here
-        pass
         
     return df
 
@@ -303,7 +302,17 @@ def make_lyrics_txt_path(lyrics_filename, lyrics_dir=LYRICS_TXT_DIR):
 
 
 def compute_lyrics_cutoff(df):
-    pctiles = df.wordcount.describe()
+    """
+    Computes a cutoff value for padding for provided data
+    
+    Args:
+        df: pd.DataFrame with wordcount column
+    
+    Returns:
+        int value of 75th percentile of wordcount for lyrics
+    """
+    # cast to int as read_csv does not always guarantee this will be int
+    pctiles = df.wordcount.astype(int).describe()
     logger.debug('wordcount pctiles:\n{0}'.format(pctiles))
     cutoff = int(pctiles[pctiles.index.str.startswith('75%')][0])
     logger.info('All songs will be limited to {0} words'.format(cutoff))
@@ -368,17 +377,17 @@ def build_lyrics_dataset(lyrics_csv, word_tokenizer, quadrants):
     """
     # import, filter, and categorize the data
     df = import_lyrics_data(lyrics_csv)
-    df = filter_lyrics_data(df, drop=True, quadrant=quadrants)
+    df = filter_lyrics_data(df, drop=True, quadrants=quadrants)
     df = categorize_lyrics_data(df)
 
-    # import the lyrics
+    # import the lyrics into the dataframe
     # here we make use of panda's apply function to parallelize the IO operation
     df['lyrics'] = df.lyrics_filename.apply(lambda x: extract_lyrics_from_file(make_lyrics_txt_path(x)))
     logger.info('Data shape after lyrics addition: {0}'.format(df.shape))
     logger.info('Df head:\n{0}'.format(df.lyrics.head()))
     
     logger.info('Sampling and Padding data to balance data.')
-    df = pad_data(df)
+    #df = pad_data(df)
     
     # preprocess the lyrics
     logger.info('Beginning Preprocessing of Lyrics... this might take a couple minutes)')
@@ -471,7 +480,7 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
 
         if regen_dataset:
             logger.info('building lyrics dataset')
-            df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv', word_tokenizer)
+            df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv', word_tokenizer, quadrants)
             # some columns are lists so must use pickle not df.to_csv
             #df.to_csv(MOODS_AND_LYRICS_CSV, encoding='utf-8')
             picklify(df, MOODS_AND_LYRICS_PICKLE)
@@ -652,12 +661,13 @@ def main():
     #best = ('w2v0', 'logs/tf/runs/Em-128_FS-3-4-5_NF-128_D-0.5_L2-0.01_B-64_Ep-20/summaries/')
     #best = ('w2v1_1', 'logs/tf/runs/Em-300_FS-3-4-5_NF-264_D-0.5_L2-0.01_B-128_Ep-10_W2V-1_V-50000/summaries/')
     #best = ('w2v1_2', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.5_L2-0.01_B-64_Ep-20_W2V-1_V-50000/summaries/')   # 52.74
-    best = ('w2v1_3', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-64_Ep-12_W2V-1_V-50000/summaries/')   # 54.30, 1.832
+    #best = ('w2v1_3', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-64_Ep-12_W2V-1_V-50000/summaries/')   # 54.30, 1.832
     # nope = ('w2v1_4', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.1_B-64_Ep-12_W2V-1_V-50000/summaries')   # 47.36
     # nope = ('w2v1_5', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.001_B-64_Ep-12_W2V-1_V-50000/summaries') # 54.55, 1.835 -- slightly more overtrained
     # nope = ('w2v1_6', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-32_Ep-6_W2V-1_V-49999/summaries')  # 51.81, 1.8
     # nope = ('w2v1_7', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-12_W2V-1_V-49999/')  # 53.30, 1.832
-    best2 = ('w2v1_3_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-11_W2V-1_V-49999_mood-quadrants/summaries/')  # ~59.5, ~1.5
+    #best = ('w2v1_3_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.75_L2-0.01_B-128_Ep-11_W2V-1_V-49999_mood-quadrants/summaries/')  # ~59.5, ~1.5
+    best = ('w2v1_4_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-10_W2V-1_V-49999_mood-quadrants/summaries')  # 60.04, # 1.106
     # Notes
     # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
     # * higher num_filters means more memory_usage; lower batch_size to make up for it
@@ -672,30 +682,30 @@ def main():
     mood_classification(
         # Controls
         name='mood-quadrants',
-        regen_dataset=False,
-        regen_lyrics2vec_dataset=False,
+        regen_dataset=True,
+        regen_lyrics2vec_dataset=True,
         use_pretrained_embeddings=True,
-        regen_pretrained_embeddings=False,
-        revectorize_lyrics=False,
-        skip_to_training=True,
+        regen_pretrained_embeddings=True,
+        revectorize_lyrics=True,
+        skip_to_training=False,
         cnn_train_embeddings=False,
         quadrants=True,
         launch_tensorboard=True,
-        best_model=best2,
+        best_model=best,
         # Model Hyperparameters
         embedding_size=300,
         filter_sizes=[3,4,5],
         num_filters=300,
-        dropout=0.2,
+        dropout=0.8,
         l2_reg_lambda=0.01,
         # Training parameters
         batch_size=128,
         num_epochs=10,
-        evaluate_every=200,
-        checkpoint_every=200,
+        evaluate_every=100,
+        checkpoint_every=100,
         num_checkpoints=5,
         # Data parameters
-        vocab_size=49999,
+        vocab_size=10000,
         word_tokenizer=word_tokenizers_ids[1],
     )
 

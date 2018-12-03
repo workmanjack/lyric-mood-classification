@@ -83,10 +83,10 @@ class LyricsCNN(object):
     Thank you to http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/
     and https://agarnitin86.github.io/blog/2016/12/23/text-classification-cnn
     """
-    def __init__(self, batch_size, num_epochs, sequence_length, num_classes, vocab_size, embedding_size, filter_sizes,
-                 num_filters, l2_reg_lambda=0.0, dropout=0.5, pretrained_embeddings=None, train_embeddings=False,
-                use_timestamp=False, output_dir=None, evaluate_every=100, checkpoint_every=100, num_checkpoints=5,
-                graph=None, name=None):
+    def __init__(self, batch_size, num_epochs, sequence_length, num_classes, vocab_size, embedding_size, 
+                 filter_sizes, num_filters, l2_reg_lambda=0.0, dropout=0.5, pretrained_embeddings=None, 
+                 train_embeddings=False, use_timestamp=False, output_dir=None, evaluate_every=100, 
+                 checkpoint_every=100, num_checkpoints=5, graph=None, name=None):
         """
         Initializes class. Creates experiment_name. Initializes TF variables.
         
