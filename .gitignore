@@ -8,6 +8,7 @@ data/*
 !data/indexed_lyrics.tar.bz2
 !data/labeled_lyrics.tar.bz2
 !data/labeled_genre.tar.bz2
+!data/mood_categories_expanded.json
 # We can't upload the data to github
 # to make sure that everyone has a log dir
 !logs/.gitkeep

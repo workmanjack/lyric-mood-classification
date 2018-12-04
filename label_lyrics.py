@@ -53,7 +53,7 @@ MOOD_CATEGORIES = {
 }
 
 
-MOOD_CATEGORIES_EXPANDED_JSON = 'mood_categories_expanded.json'
+MOOD_CATEGORIES_EXPANDED_JSON = 'data/mood_categories_expanded.json'
 def read_mood_categories_expanded():
     data = None
     with open(MOOD_CATEGORIES_EXPANDED_JSON, 'r') as f:
