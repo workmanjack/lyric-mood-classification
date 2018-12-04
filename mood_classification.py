@@ -442,7 +442,7 @@ def vectorize_lyrics_dataset(df, lyrics_vectorizer, lyrics_col=COL_PRE_AND_PADDE
     Returns:
         pd.DataFrame with 'vectorized_lyrics' column
     """
-    logger.info("Normalizing lyrics... (this will take a minute)")
+    logger.info("Vectorizing lyrics... (this will take a minute)")
     start = time.time()
 
     # here we make use of panda's apply function to parallelize the IO operation (again)
@@ -499,8 +499,8 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
                         use_pretrained_embeddings, regen_pretrained_embeddings, 
                         cnn_train_embeddings, word_tokenizer, vocab_size, embedding_size,
                         filter_sizes, num_filters, dropout, l2_reg_lambda, batch_size, 
-                        num_epochs, skip_to_training, quadrants, pad_data_flag, low_memory_mode,
-                        evaluate_every, checkpoint_every, num_checkpoints, 
+                        num_epochs, skip_to_training, quadrants, pad_data_flag, pad_train_only,
+                        low_memory_mode, evaluate_every, checkpoint_every, num_checkpoints, 
                         launch_tensorboard=False, name=None,
                         best_model=None):
     """
@@ -529,7 +529,8 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         cnn_train_embeddings: bool, set embeddings as trainable or not in CNN
         skip_to_training: bool, skip to stage 5 by reloading needed data from pickles
         quadrants: bool, group moods into quadrants or not
-        pad_data_flag: bool, normalize mood label counts by oversampling and shuffling lyrics
+        pad_data_flag: bool, equalize mood label counts by oversampling and shuffling lyrics
+        pad_train_only: bool, equalize mood label counts for only the training data set and not dev and test
         low_memory_mode: bool, activate low memory mode or not (useful if pad_data_flag is on)
         launch_tensorboard: bool, launch tensorboard during training (default: False)
         best_model: (str, str), name of best model and path to model's summary dir for tensorboard visualization
@@ -578,9 +579,11 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         if regen_dataset:
             logger.info('building lyrics dataset')
             df = build_lyrics_dataset('data/labeled_lyrics_expanded.csv',
-                                      word_tokenizer, quadrants, pad_data_flag,
-                                     preprocess_col=col_preprocessed_lyrics,
-                                     preprocess_padded_col=col_pre_and_padded_lyrics)
+                                      word_tokenizer, quadrants,
+                                      # we only pad data here if we want ALL moods equalized
+                                      pad_data_flag and not pad_train_only,
+                                      preprocess_col=col_preprocessed_lyrics,
+                                      preprocess_padded_col=col_pre_and_padded_lyrics)
             # some columns are lists so must use pickle not df.to_csv
             #df.to_csv(MOODS_AND_LYRICS_CSV, encoding='utf-8')
             picklify(df, MOODS_AND_LYRICS_PICKLE)
@@ -647,6 +650,10 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         step_time = time.time()
 
         df_train, df_dev, df_test = split_data(df)
+
+        if pad_data and pad_train_only:
+            df_train = pad_data(df_train)
+
         x_train, y_train, x_dev, y_dev, x_test, y_test = split_x_y(df_train, df_dev, df_test, 
                                                                    x_col=col_vectorized_lyrics)
         picklify([x_train, y_train, x_dev, y_dev, x_test, y_test], X_Y_PICKLE)
@@ -801,6 +808,7 @@ def main():
         cnn_train_embeddings=False,
         quadrants=True,
         pad_data_flag=True,
+        pad_train_only=True,
         low_memory_mode=True,
         launch_tensorboard=True,
         best_model=best,
