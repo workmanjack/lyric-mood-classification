@@ -145,7 +145,7 @@ The output of this stage is a csv (commonly referred to as indexed_lyrics.csv) w
 
 Once we have a nice index built, we match the lyrics to the mood tags from the last.fm dataset. To do this, we iterate over each row of the index, query the sqlite Last.fm database for all associated tags, then attempt to match tags against our mood categories.
 
-Our mood categories come in two different forms: the original mood categories (the MOOD_CATEGORIES dict in [label_lyrics.py](label_lyrics.py)) and the expanded mood categories (viewable at [mood_categories_expanded.json](mood_categories_expanded.json). When using the expanded categories, substring matching and subsequent filtering is used to match moods. We explain this process more in-depth in our paper (todo provide link).
+Our mood categories come in two different forms: the original mood categories (the MOOD_CATEGORIES dict in [label_lyrics.py](label_lyrics.py)) and the expanded mood categories (viewable at [mood_categories_expanded.json](mood_categories_expanded.json)). When using the expanded categories, substring matching and subsequent filtering is used to match moods. We explain this process more in-depth in our paper (todo provide link).
 
 Run `python label_lyrics.py --expanded-moods`
 
@@ -180,10 +180,10 @@ Since much of the fun in NLP and Deep Learning comes from fiddling with and mani
 
 * Importing, filtering, and preprocessing the lyrics
 * Training word embeddings with lyrics2vec
-* Vectorize and split the dataset
-* Train the CNN
+* Vectorizing and splitting the dataset
+* Training the CNN
 
-This pipeline is available via [mood_classification.py](mood_classification.py). With one command, you can generate word embeddings and train a CNN model on our lyrics dataset. The configuration options are numerous. Please review the script's documentation for details.
+This pipeline is available via [mood_classification.py](mood_classification.py). With one command, you can generate word embeddings and train a CNN model on our lyrics dataset! The configuration options are numerous. Please review the script's documentation for details.
 
 Run `python mood_classification.py`
 
@@ -206,17 +206,23 @@ We provide several means to review the output of a trained model.
 
 First, you can use TensorFlow's tensorboard. The [mood_classification.py](mood_classification.py) script can autogenerate a tensorboard command for you, or you can build your own with the following:
 
-    `tensorboard --logdir logs/tf/runs/<model>/summaries/`
+    tensorboard --logdir logs/tf/runs/<model>/summaries/
 
 To compare multiple models in tensorboard try:
 
-    `tensorboard --logdir <name1>:logs/tf/runs/<model1>/summaries,<name2>:logs/tf/runs/<model2>/summaries`
+    tensorboard --logdir <name1>:logs/tf/runs/<model1>/summaries,<name2>:logs/tf/runs/<model2>/summaries
+
+![](examples/tensorboard_acc_loss.png)
 
 Note that [mood_classification.py](mood_classification.py) saves model summaries and model checkpoints and that is what tensorboard uses to generate its visualizations.
 
 Second, you can view outputted step_data.csv generated during training. It contains a row-by-row log of each train, dev, and test step along with the timestamp, the step id, the loss, and the accuracy.
 
+Example: [examples/step_data.csv](examples/step_data.csv).
+
 Third, you can view the model's confusion matrix. These are generated according to your `evaluate_every` value (default: 100) and look like 200_confusion.csv for step 200. For enhanced viewing, use the [visualizations notebook](visualizations.ipynb) which generates a visually appealing and color-coded confusion matrix with seaborn.
+
+![](examples/5152_confusion.png)
 
 ### Useful Links
 
