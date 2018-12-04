@@ -192,7 +192,6 @@ Within your lyrics2vec model's output directory, you will find model checkpoints
 
 ![](examples/embeddings.png)
 
-
 ### Reviewing CNN Results
 
 We provide several means to review the output of a trained model.
