@@ -1,12 +1,25 @@
-from langdetect import detect
+"""
+Use this script to construct an index of lyrics file downloaded with
+scrape_lyrics.py.
+
+Recommended Command:
+
+    python index_lyrics.py
+
+Output: data/indexed_lyrics.csv
+"""
+# project imports
+from scrape_lyrics import make_lyric_file_name, CSV_MUSIXMATCH_MAPPING
+from utils import read_file_contents, configure_logging, logger
+
+# python and package imports
 from langdetect.lang_detect_exception import LangDetectException
-import argparse
+from langdetect import detect
 import pandas as pd
+import argparse
 import time
 import json
 import os
-from utils import read_file_contents, configure_logging, logger
-from scrape_lyrics import make_lyric_file_name, CSV_MUSIXMATCH_MAPPING
 
 
 CSV_INDEX_LYRICS = 'data/indexed_lyrics.csv'

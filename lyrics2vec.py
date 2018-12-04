@@ -1,3 +1,13 @@
+"""
+Contains the class lyrics2vec which provides functionality to build and train
+word embeddings from a corpus of words.
+
+This script is not meant to be run on its own. There is a main function that was
+used while testing, but it is no longer guaranteed to work.
+
+Please see mood_classification.py for how lyrics2vec is used.
+"""
+
 # project imports
 from utils import read_file_contents, configure_logging, logger, picklify, unpicklify
 from scrape_lyrics import LYRICS_TXT_DIR

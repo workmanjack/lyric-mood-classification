@@ -1,7 +1,8 @@
 """
 This script iterates through the artist:song pairs in the musixmatch file and
 uses the lyricgenius package to retrieve the lyrics for each song from
-Genius.com. The lyrics are then saved as json and as txt files.
+Genius.com. The lyrics are then saved as json and as txt files in
+data/lyrics/json and data/lyrics/txt, respectively.
 
 An additional file is created, no_lyrics.csv, to track which songs we are unable
 to retrieve lyrics for. This file is later reused in subsequent runs of this
@@ -9,6 +10,12 @@ script to avoid wasting time attempting to download lyrics for a song we know
 we cannot find. The same logic applies to songs we already have lyrics for. The
 script will not attempt to find lyrics for songs that already exist in the data
 directory.
+
+Recommended Command:
+
+    python scrape_lyrics.py
+    
+Output: data/lyrics/json/*.json and data/lyrics/txt/*.txt
 """
 import lyricsgenius as genius
 import pandas as pd

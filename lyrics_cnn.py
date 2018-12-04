@@ -5,6 +5,10 @@ These incredibly helpful sources were a big help when putting together the CNN:
 * http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/
 * https://agarnitin86.github.io/blog/2016/12/23/text-classification-cnn
 
+This file is not meant to be executed on its own. There is a main function that was
+primarily used for testing, but it is no longer guaranteed to work as designed.
+
+To run the CNN, please use mood_classification.py.
 """
 # project imports
 from utils import read_file_contents, configure_logging, logger, picklify, unpicklify

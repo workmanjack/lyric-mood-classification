@@ -488,7 +488,7 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
     
     if low_memory_mode:
         logger.info('Engaging Low Memory Mode')
-        col_preprocessed_lyrics = 'lyricsp'  # needs to be separate as this is input into embeddings
+        col_preprocessed_lyrics = 'lyricsp'    # needs to be separate as this is input into embeddings
         col_pre_and_padded_lyrics = 'lyrics' # and this is input into CNN
         col_vectorized_lyrics = 'lyrics'
     else:
@@ -701,8 +701,9 @@ def main():
     #nope = ('w2v1_6_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-5000_mood-quadrants/summaries')  # 60.67%, 1.082
     #nope = ('w2v1_7_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-20000_mood-quadrants')  # 60.08%, 1.097
     # --- All below are done with 80-10-10 splits unless specifically specified otherwise
-    best = ('w2v1_8_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-10000_mood-quadrants_80-10-10/summaries/')  # 63.97%, 1.04451
-    # nope = ('w2v1_9_quadrants_wordpunkt', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-10000_mood-quadrants_80-10-10_wordpunkt/summaries/')  # 61.78%, 1.0773
+    #best = ('w2v1_8_quadrants', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-10000_mood-quadrants_80-10-10/summaries/')  # 63.97%, 1.04451
+    #nope = ('w2v1_9_quadrants_wordpunkt', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-10000_mood-quadrants_80-10-10_wordpunkt/summaries/')  # 61.78%, 1.0773
+    best = ('w2v1_9_quadrants_padded', 'logs/tf/runs/Em-300_FS-3-4-5_NF-300_D-0.8_L2-0.01_B-128_Ep-8_W2V-1_V-10000_mood-quadrants_padded/summaries/')  # 74.86%, 0.8397, Elapsed Time: 90 mins!
 
     # Notes
     # * lower batch_size means less epochs; increase num_epochs inversely with batch_size to train for equal time
@@ -718,12 +719,12 @@ def main():
     mood_classification(
         # Controls
         name='mood-quadrants_padded',
-        regen_dataset=True,
-        regen_lyrics2vec_dataset=True,
+        regen_dataset=False,
+        regen_lyrics2vec_dataset=False,
         use_pretrained_embeddings=True,
-        regen_pretrained_embeddings=True,
-        revectorize_lyrics=True,
-        skip_to_training=False,
+        regen_pretrained_embeddings=False,
+        revectorize_lyrics=False,
+        skip_to_training=True,
         cnn_train_embeddings=False,
         quadrants=True,
         pad_data_flag=True,
@@ -738,7 +739,7 @@ def main():
         l2_reg_lambda=0.01,
         # Training parameters
         batch_size=128,
-        num_epochs=8,
+        num_epochs=12,
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
