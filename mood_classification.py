@@ -1,3 +1,13 @@
+"""
+Contains the Lyric Mood Classification Pipeline and its associated functions.
+
+The pipeline processes our lyrics data, trains embeddings, and trains a CNN.
+
+For documentation on the pipeline, please see the mood_classification function.
+
+For an example of how to use the pipeline, please see the main function.
+"""
+
 # project imports
 from utils import read_file_contents, full_elapsed_time_str, configure_logging, logger, picklify, unpicklify
 from lyrics2vec import lyrics2vec, LOGS_TF_DIR
@@ -461,14 +471,26 @@ def split_data(df):
     return df_train, df_dev, df_test
 
 
-def split_x_y(df_train, df_dev, df_test, x_col=COL_VECTORIZED_LYRICS):
+def split_x_y(df_train, df_dev, df_test, x_col=COL_VECTORIZED_LYRICS, y_col='mood'):
+    """
+    Splits the given train, dev, and test dataframes into x and y dataframes.
     
+    Args:
+        df_train: pd.DataFrame
+        df_dev: pd.DataFrame
+        df_test: pd.DataFrame
+        x_col: str, column to take x data from
+        y_col: str, column to take y labels from
+
+    Returns:
+        x_train, y_train, x_dev, y_dev, x_test, y_test np.array objects
+    """
     x_train = np.array(list(df_train[x_col]))
-    y_train = pd.get_dummies(df_train.mood).values
+    y_train = pd.get_dummies(df_train[y_col]).values
     x_dev = np.array(list(df_dev[x_col]))
-    y_dev = pd.get_dummies(df_dev.mood).values
+    y_dev = pd.get_dummies(df_dev[y_col]).values
     x_test = np.array(list(df_test[x_col]))
-    y_test = pd.get_dummies(df_test.mood).values
+    y_test = pd.get_dummies(df_test[y_col]).values
   
     return x_train, y_train, x_dev, y_dev, x_test, y_test 
 
@@ -482,7 +504,58 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
                         launch_tensorboard=False, name=None,
                         best_model=None):
     """
-    One big function to control everything post data collection in the project from embeddings to cnn
+    Our Lyric Mood Classification Pipeline.
+    
+    The pipe stages are
+    
+        1. Load Lyrics
+        2. Train Embeddings
+        3. Vectorize Lyrics (from embeddings class)
+        4. Split Data
+        5. Prepare to Train the CNN
+        6. Train the CNN
+
+    The options allow for configuration of the pipeline to manipulate or skip stages of the pipe. Note
+    that skipping stages assumes that you've run them once before and saved the associated pickle.
+    
+    Args for Pipeline Control:
+
+        name: str, optional name of experiment
+        regen_dataset: bool, load and preprocess lyrics or load from pickle
+        regen_lyrics2vec_data: bool, load and preprocess lyrics2vec vocabulary or load from pickle
+        revectorize_lyrics: bool, revectorize lyrics or load from pickle
+        use_pretrained_embeddings: bool, use word2vec generated embeddings in CNN or let CNN train its own
+        regen_pretrained_embeddings: bool, regenerate word2vec embeddings from vocabulary or not
+        cnn_train_embeddings: bool, set embeddings as trainable or not in CNN
+        skip_to_training: bool, skip to stage 5 by reloading needed data from pickles
+        quadrants: bool, group moods into quadrants or not
+        pad_data_flag: bool, normalize mood label counts by oversampling and shuffling lyrics
+        low_memory_mode: bool, activate low memory mode or not (useful if pad_data_flag is on)
+        launch_tensorboard: bool, launch tensorboard during training (default: False)
+        best_model: (str, str), name of best model and path to model's summary dir for tensorboard visualization
+
+    Args for Model Hyperparameters:
+   
+        embedding_size: int, dimensionality of embeddings vectors
+        filter_sizes: list of ints, sizes of filters to use (how many words each covers)
+        num_filters: int, number of filters per filter size
+        dropout: float, dropout keep probability (1 to disable)
+        l2_reg_lambda: float, L2 regularization param
+    
+    Args for Training Parameters:
+    
+        batch_size: int, number of training to inputs with each step
+        num_epochs: int, number of times training processes the entire input
+        evaluate_every: int, interval of steps model reports accuracy on dev set
+        checkpoint_every: int, interval of steps model saves a checkpoint
+        num_checkpoints: int, total number of checkpoints to save
+
+    Args for Embeddings Parameters:
+
+        vocab_size: int, number of words to maintain in vocabulary (the rest are replaced with 'unk')
+        word_tokenizer: int, word tokenizing function to use (see word_tokenizers dict)
+    
+    Returns: None
     """
     mood_classification_time = time.time()
     
@@ -743,7 +816,7 @@ def main():
         evaluate_every=100,
         checkpoint_every=100,
         num_checkpoints=5,
-        # Data parameters
+        # Embeddings parameters
         vocab_size=10000,
         word_tokenizer=word_tokenizers_ids[1],
     )
