@@ -686,7 +686,7 @@ def mood_classification(regen_dataset, regen_lyrics2vec_dataset, revectorize_lyr
         evaluate_every=evaluate_every,
         checkpoint_every=checkpoint_every,
         num_checkpoints=num_checkpoints,
-        pretrained_embeddings=lyrics_vectorizer.final_embeddings,
+        pretrained_embeddings=None if not use_pretrained_embeddings else lyrics_vectorizer.final_embeddings,
         train_embeddings=cnn_train_embeddings,
         name=name)
     
